@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISO-FLOOD | Urban Analytics Engine</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #0F1115;
+            --panel-bg: #1A1D24;
+            --building-base: #3C4048;
+            --water-primary: rgba(0, 191, 255, 0.6);
+            --accent-neon: #00FF41;
+            --text-main: #E0E0E0;
+            --text-dim: #6A6E77;
+            --border-glow: rgba(0, 255, 65, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+        }
+
+        /* --- UI LAYER --- */
+        #ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 24px;
+        }
+
+        .sidebar {
+            width: 320px;
+            background: var(--panel-bg);
+            border: 1px solid #2A2E37;
+            border-left: 4px solid var(--accent-neon);
+            padding: 24px;
+            pointer-events: auto;
+            box-shadow: 20px 0 50px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .header h1 {
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            color: var(--accent-neon);
+            margin-bottom: 4px;
+        }
+
+        .header p {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        label span {
+            color: var(--accent-neon);
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: #2A2E37;
+            height: 4px;
+            border-radius: 2px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--accent-neon);
+            cursor: pointer;
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent-neon);
+        }
+
+        .telemetry-box {
+            background: rgba(0,0,0,0.2);
+            border: 1px solid #2A2E37;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stat-label {
+            font-size: 0.65rem;
+            color: var(--text-dim);
+        }
+
+        .stat-value {
+            font-size: 0.9rem;
+            color: var(--accent-neon);
+            font-weight: bold;
+        }
+
+        .top-bar {
+            width: 100%;
+            height: 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+            background: rgba(26, 29, 36, 0.8);
+            border-bottom: 1px solid #2A2E37;
+            pointer-events: auto;
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.7rem;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-neon);
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(1.2); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            background-color: var(--bg-deep);
+        }
+
+        .grid-info {
+            position: absolute;
+            bottom: 24px;
+            right: 24px;
+            color: var(--text-dim);
+            font-size: 0.7rem;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-overlay">
+        <div class="top-bar">
+            <div class="status-pill">
+                <div class="dot"></div>
+                SYSTEM: ACTIVE | ENGINE: ISOMETRIC_2.5D
+            </div>
+            <div style="font-size: 0.7rem; color: var(--text-dim);">
+                COORD_SYS: WGS84_MOCK | EPSG: 3857
+            </div>
+        </div>
+
+        <div style="display: flex; height: calc(100% - 40px);">
+            <div class="sidebar">
+                <div class="header">
+                    <h1>METRO_FLOOD</h1>
+                    <p>Urban Resilience Simulation v1.0.4</p>
+                </div>
+
+                <div class="control-group">
+                    <label>Rainfall Intensity <span id="rain-val">0.05</span></label>
+                    <input type="range" id="rain-slider" min="0" max="1" step="0.01" value="0.05">
+                </div>
+
+                <div class="control-group">
+                    <label>Drainage Efficiency <span id="drain-val">0.02</span></label>
+                    <input type="range" id="drain-slider" min="0" max="0.5" step="0.01" value="0.02">
+                </div>
+                <div class="control-group">
+                    <button id="btn-rotate" style="background:#262B35; color:#00FF66; border:1px solid #3C4048; padding:8px 12px; cursor:pointer; width:100%; font-family:inherit; text-transform:uppercase; margin-bottom:10px;">🔄 Rotate Camera</button>
+                    <button id="btn-xray" style="background:#262B35; color:#00FF66; border:1px solid #3C4048; padding:8px 12px; cursor:pointer; width:100%; font-family:inherit; text-transform:uppercase; margin-bottom:10px;">👁️ Toggle X-Ray</button>
+                    <button id="btn-safety" style="background:#262B35; color:#FFD700; border:1px solid #3C4048; padding:8px 12px; cursor:pointer; width:100%; font-family:inherit; text-transform:uppercase; margin-bottom:10px;">🛡️ Safety Risk</button>
+                    <button id="btn-flood" style="background:#4A1115; color:#FF3131; border:1px solid #FF3131; padding:8px 12px; cursor:pointer; width:100%; font-family:inherit; text-transform:uppercase; margin-bottom:10px;">🚨 Flash Flood</button>
+                    <button id="btn-reset" style="background:#262B35; color:#E0E0E0; border:1px solid #3C4048; padding:8px 12px; cursor:pointer; width:100%; font-family:inherit; text-transform:uppercase;">🔄 Reset Engine</button>
+                </div>
+
+                <div class="telemetry-box" style="margin-top: -12px; border-top: none; background: rgba(0,0,0,0.1);">
+                    <div style="font-size: 0.6rem; color: var(--text-dim); margin-bottom: 8px; letter-spacing: 1px;">BUILDING TYPOLOGY</div>
+                    <div class="stat-row">
+                        <span class="stat-label"><span style="display:inline-block; width:8px; height:8px; background:#B0C4DE; margin-right:6px;"></span>SKYSCRAPER</span>
+                        <span class="stat-value" style="font-size: 0.7rem;">>12F</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label"><span style="display:inline-block; width:8px; height:8px; background:#829399; margin-right:6px;"></span>HIGH-RISE</span>
+                        <span class="stat-value" style="font-size: 0.7rem;">8-12F</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label"><span style="display:inline-block; width:8px; height:8px; background:#4E6E81; margin-right:6px;"></span>MID-RISE</span>
+                        <span class="stat-value" style="font-size: 0.7rem;">3-7F</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label"><span style="display:inline-block; width:8px; height:8px; background:#3C4048; margin-right:6px;"></span>LOW-RISE</span>
+                        <span class="stat-value" style="font-size: 0.7rem;">1-2F</span>
+                    </div>
+                </div>
+
+                <div class="telemetry-box">
+                    <div class="stat-row">
+                        <span class="stat-label">VIEW ORIENTATION</span>
+                        <span class="stat-value" id="stat-heading">NORTH (0°)</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">AVG WATER DEPTH</span>
+                        <span class="stat-value" id="stat-depth">0.00m</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">FLOOD RISK INDEX</span>
+                        <span class="stat-value" id="stat-risk">STABLE</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">DISCHARGE RATE</span>
+                        <span class="stat-value" id="stat-discharge">0.42 m³/s</span>
+                    </div>
+                </div>
+
+                <div style="margin-top: auto; font-size: 0.6rem; color: var(--text-dim); line-height: 1.5;">
+                    // PINN INFERENCE ENGINE ACTIVE<br>
+                    // 3D FLUID DIFFUSION ENABLED<br>
+                    // RENDERING AT 60FPS
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-info">
+            LAT: 40.7128° N<br>
+            LON: 74.0060° W<br>
+            GRID: 32 x 32 UNITS
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script>
+        const GRID_SIZE = 32;
+        const TILE_W = 48;
+        const TILE_H = 24;
+        const HEIGHT_SCALE = 12;
+
+        let zoomScale = 1.0;
+        let minZoom = 0.2;
+        let maxZoom = 4.0;
+        let panX = 0;
+        let panY = 0;
+        let isDragging = false;
+        let currentRotation = 0;
+        let xRayMode = false;
+        let isFlooding = false;
+        let safetyMode = false;
+
+        let buildings = [];
+        let waterLevels = [];
+        let targetWater = [];
+
+        let rainIntensity = 0.05;
+        let drainageRate = 0.02;
+
+        function setup() {
+            let container = document.getElementById('canvas-container');
+            let canvas = createCanvas(container.clientWidth, container.clientHeight);
+            canvas.parent('canvas-container');
+
+            panX = width / 2;
+            panY = height / 4;
+
+            canvas.mouseWheel(handleZoom);
+
+            for (let i = 0; i < GRID_SIZE; i++) {
+                buildings[i] = [];
+                waterLevels[i] = [];
+                targetWater[i] = [];
+                for (let j = 0; j < GRID_SIZE; j++) {
+                    buildings[i][j] = 0;
+                    waterLevels[i][j] = 0;
+                    targetWater[i][j] = 0;
+
+                    if (i === Math.floor(GRID_SIZE / 2) || i === Math.floor(GRID_SIZE / 2) + 1) {
+                        buildings[i][j] = 0;
+                    } else if (random() > 0.8) {
+                        buildings[i][j] = floor(random(5, 18));
+                    } else if (random() > 0.6) {
+                        buildings[i][j] = floor(random(1, 3));
+                    }
+                }
+            }
+
+            document.getElementById('rain-slider').addEventListener('input', (e) => {
+                rainIntensity = parseFloat(e.target.value);
+                document.getElementById('rain-val').innerText = rainIntensity.toFixed(2);
+            });
+
+            document.getElementById('drain-slider').addEventListener('input', (e) => {
+                drainageRate = parseFloat(e.target.value);
+                document.getElementById('drain-val').innerText = drainageRate.toFixed(2);
+            });
+
+            document.getElementById('btn-rotate').addEventListener('click', () => {
+                currentRotation = (currentRotation + 1) % 4;
+            });
+
+            document.getElementById('btn-xray').addEventListener('click', () => {
+                xRayMode = !xRayMode;
+                let btn = document.getElementById('btn-xray');
+                btn.style.background = xRayMode ? '#00FF41' : '#262B35';
+                btn.style.color = xRayMode ? '#0F1115' : '#00FF66';
+            });
+
+            document.getElementById('btn-safety').addEventListener('click', () => {
+                safetyMode = !safetyMode;
+                let btn = document.getElementById('btn-safety');
+                btn.style.background = safetyMode ? '#FFD700' : '#262B35';
+                btn.style.color = safetyMode ? '#0F1115' : '#FFD700';
+            });
+
+            document.getElementById('btn-flood').addEventListener('click', () => {
+                isFlooding = !isFlooding;
+                let btn = document.getElementById('btn-flood');
+                btn.style.background = isFlooding ? '#FF3131' : '#4A1115';
+                btn.style.color = isFlooding ? '#0F1115' : '#FF3131';
+            });
+
+            document.getElementById('btn-reset').addEventListener('click', resetSimulation);
+        }
+
+        function resetSimulation() {
+            // Clear water arrays
+            for (let i = 0; i < GRID_SIZE; i++) {
+                for (let j = 0; j < GRID_SIZE; j++) {
+                    waterLevels[i][j] = 0;
+                    targetWater[i][j] = 0;
+                }
+            }
+            
+            // Reset Flags
+            isFlooding = false;
+            let floodBtn = document.getElementById('btn-flood');
+            floodBtn.style.background = '#4A1115';
+            floodBtn.style.color = '#FF3131';
+
+            safetyMode = false;
+            let safetyBtn = document.getElementById('btn-safety');
+            safetyBtn.style.background = '#262B35';
+            safetyBtn.style.color = '#FFD700';
+
+            xRayMode = false;
+            let xrayBtn = document.getElementById('btn-xray');
+            xrayBtn.style.background = '#262B35';
+            xrayBtn.style.color = '#00FF66';
+        }
+
+        function draw() {
+            background('#0F1115');
+            updateSimulation();
+
+            push(); 
+            translate(panX, panY);
+            scale(zoomScale);
+
+            for (let sy = 0; sy < GRID_SIZE; sy++) {
+                for (let sx = 0; sx < GRID_SIZE; sx++) {
+                    renderTile(sx, sy);
+                }
+            }
+            pop(); 
+
+            updateStats();
+            drawCompass();
+        }
+
+        function drawCompass() {
+            let cx = width - 80;
+            let cy = 100;
+            let r = 40;
+            push();
+            translate(cx, cy);
+            noFill(); stroke('#2A2E37'); strokeWeight(1);
+            ellipse(0, 0, r * 2);
+            rotate(currentRotation * HALF_PI);
+            textAlign(CENTER, CENTER); textSize(10); fill('#6A6E77');
+            text("N", 0, -r + 12); text("S", 0, r - 12); text("E", r - 12, 0); text("W", -r + 12, 0);
+            stroke('#00FF41'); strokeWeight(2); line(0, 0, 0, -r + 5);
+            fill('#00FF41'); triangle(-4, -r + 15, 4, -r + 15, 0, -r + 5);
+            pop();
+        }
+
+        function updateSimulation() {
+            let mult = isFlooding ? 15.0 : 1.0;
+            
+            for (let i = 0; i < GRID_SIZE; i++) {
+                for (let j = 0; j < GRID_SIZE; j++) {
+                    targetWater[i][j] += rainIntensity * 0.015 * mult;
+                    let localDrain = (buildings[i][j] === 0) ? drainageRate * 0.02 : drainageRate * 0.005;
+                    targetWater[i][j] -= localDrain;
+                    targetWater[i][j] = constrain(targetWater[i][j], 0, 30);
+                }
+            }
+
+            let nextWater = [];
+            for(let i=0; i<GRID_SIZE; i++) nextWater[i] = [...targetWater[i]];
+
+            const flowSpeed = 0.15;
+            for (let i = 0; i < GRID_SIZE; i++) {
+                for (let j = 0; j < GRID_SIZE; j++) {
+                    let myWater = targetWater[i][j];
+                    let neighbors = [[i-1, j], [i+1, j], [i, j-1], [i, j+1]];
+                    for (let n of neighbors) {
+                        let ni = n[0], nj = n[1];
+                        if (ni >= 0 && ni < GRID_SIZE && nj >= 0 && nj < GRID_SIZE) {
+                            let theirWater = targetWater[ni][nj];
+                            if (myWater > theirWater) {
+                                let diff = (myWater - theirWater) * flowSpeed;
+                                nextWater[i][j] -= diff;
+                                nextWater[ni][nj] += diff;
+                            }
+                        }
+                    }
+                }
+            }
+            targetWater = nextWater;
+
+            for (let i = 0; i < GRID_SIZE; i++) {
+                for (let j = 0; j < GRID_SIZE; j++) {
+                    waterLevels[i][j] = lerp(waterLevels[i][j], targetWater[i][j], 0.1);
+                }
+            }
+        }
+
+        function renderTile(sx, sy) {
+            let dx, dy;
+            if (currentRotation === 0) { dx = sx; dy = sy; }
+            else if (currentRotation === 1) { dx = sy; dy = GRID_SIZE - 1 - sx; }
+            else if (currentRotation === 2) { dx = GRID_SIZE - 1 - sx; dy = GRID_SIZE - 1 - sy; }
+            else if (currentRotation === 3) { dx = GRID_SIZE - 1 - sy; dy = sx; }
+
+            let cx = sx - GRID_SIZE / 2;
+            let cy = sy - GRID_SIZE / 2;
+            let isoX = (cx - cy) * (TILE_W / 2);
+            let isoY = (cx + cy) * (TILE_H / 2);
+
+            let bHeight = buildings[dx][dy];
+            let wDepth = waterLevels[dx][dy];
+
+            let bColor = '#3C4048';
+            let bSide = '#2A2E37';
+            let gColor = '#1A1D24';
+            let gSide = '#15171D';
+
+            // Segregate building colors by height
+            if (bHeight > 0) {
+                if (bHeight <= 2) { bColor = '#3C4048'; bSide = '#2A2E37'; } // Low-rise
+                else if (bHeight <= 7) { bColor = '#4E6E81'; bSide = '#364B58'; } // Mid-rise
+                else if (bHeight <= 12) { bColor = '#829399'; bSide = '#59656A'; } // High-rise
+                else { bColor = '#B0C4DE'; bSide = '#7E8DA0'; } // Skyscraper
+            }
+
+            if (safetyMode) {
+                let isSubmerged = (bHeight > 0 && wDepth >= bHeight);
+                let isCritical = (wDepth > 2.5) || (bHeight > 0 && wDepth > bHeight * 0.6);
+                let isWarning = (wDepth > 0.8) || (bHeight > 0 && wDepth > bHeight * 0.2);
+
+                if (isSubmerged || isCritical) { 
+                    bColor = '#FF3131'; bSide = '#8B0000';
+                    gColor = 'rgba(255, 49, 49, 0.2)'; gSide = 'rgba(139, 0, 0, 0.2)';
+                } else if (isWarning) { 
+                    bColor = '#FFD700'; bSide = '#8B8000';
+                    gColor = 'rgba(255, 215, 0, 0.2)'; gSide = 'rgba(139, 128, 0, 0.2)';
+                } else { 
+                    bColor = '#00FF41'; bSide = '#006400';
+                    gColor = 'rgba(0, 255, 65, 0.2)'; gSide = 'rgba(0, 100, 0, 0.2)';
+                }
+            }
+
+            drawCube(isoX, isoY, 0.2, gColor, gSide); 
+
+            if (bHeight > 0) {
+                if (xRayMode && !safetyMode) {
+                    drawCube(isoX, isoY, bHeight, 'rgba(60, 64, 72, 0.1)', 'rgba(42, 46, 55, 0.05)', false, true);
+                } else {
+                    drawCube(isoX, isoY, bHeight, bColor, bSide, false, true);
+                }
+            }
+
+            if (wDepth > 0.01) {
+                let ripple = sin(frameCount * 0.1 + (dx + dy) * 0.5) * 0.04;
+                drawCube(isoX, isoY, wDepth + ripple, 'rgba(0, 191, 255, 0.45)', 'rgba(0, 150, 255, 0.35)', true, false);
+            }
+        }
+
+        function drawCube(sx, sy, h, colorTop, colorSide, isFluid = false, isBuilding = false) {
+            let hz = h * HEIGHT_SCALE;
+            let cLeft = isFluid ? colorSide : lerpColor(color(colorSide), color(0), 0.15);
+            fill(cLeft); noStroke();
+            if (isBuilding && !xRayMode) stroke('#20242B');
+            beginShape();
+            vertex(sx, sy); vertex(sx - TILE_W / 2, sy + TILE_H / 2);
+            vertex(sx - TILE_W / 2, sy + TILE_H / 2 - hz); vertex(sx, sy - hz);
+            endShape(CLOSE);
+
+            fill(colorSide);
+            beginShape();
+            vertex(sx, sy); vertex(sx + TILE_W / 2, sy + TILE_H / 2);
+            vertex(sx + TILE_W / 2, sy + TILE_H / 2 - hz); vertex(sx, sy - hz);
+            endShape(CLOSE);
+
+            fill(colorTop);
+            if (isBuilding) {
+                stroke(xRayMode && !safetyMode ? 'rgba(0, 255, 65, 0.3)' : '#00FF41'); strokeWeight(1);
+            } else if (isFluid) {
+                noStroke();
+            } else {
+                stroke('#262B35'); strokeWeight(0.5);
+            }
+            beginShape();
+            vertex(sx, sy - hz); vertex(sx + TILE_W / 2, sy - TILE_H / 2 - hz);
+            vertex(sx, sy - TILE_H - hz); vertex(sx - TILE_W / 2, sy - TILE_H / 2 - hz);
+            endShape(CLOSE);
+
+            if (isFluid && !isBuilding) {
+                stroke('rgba(255, 255, 255, 0.2)'); strokeWeight(1);
+                let flow = (frameCount * 0.5) % (TILE_W);
+                let ox = sx - TILE_W/2 + flow; let oy = sy - TILE_H/2 - hz;
+                if (flow < TILE_W * 0.6) line(ox, oy, ox + 10, oy + 5);
+            }
+            noStroke(); strokeWeight(1);
+        }
+
+        function mousePressed() { if (mouseX > 320) isDragging = true; }
+        function mouseReleased() { isDragging = false; }
+        function mouseDragged() { if (isDragging) { panX += mouseX - pmouseX; panY += mouseY - pmouseY; } }
+        function handleZoom(event) {
+            if (event.deltaY < 0) zoomScale *= 1.05; else zoomScale *= 0.95;
+            zoomScale = constrain(zoomScale, minZoom, maxZoom); return false;
+        }
+
+        function updateStats() {
+            let totalDepth = 0;
+            for (let i = 0; i < GRID_SIZE; i++) { for (let j = 0; j < GRID_SIZE; j++) totalDepth += waterLevels[i][j]; }
+            let avg = totalDepth / (GRID_SIZE * GRID_SIZE);
+            const headings = ["NORTH (0°)", "EAST (90°)", "SOUTH (180°)", "WEST (270°)"];
+            let headingEl = document.getElementById('stat-heading');
+            if (headingEl) headingEl.innerText = headings[currentRotation];
+            let targetDepthEl = document.getElementById('stat-depth');
+            if(targetDepthEl) targetDepthEl.innerText = avg.toFixed(2) + "m";
+            let risk = "STABLE"; let riskColor = "#00FF41";
+            if (avg > 1.2) { risk = "CRITICAL"; riskColor = "#FF3131"; } 
+            else if (avg > 0.4) { risk = "WARNING"; riskColor = "#FFD700"; }
+            let riskEl = document.getElementById('stat-risk');
+            if (riskEl) { riskEl.innerText = risk; riskEl.style.color = riskColor; }
+        }
+
+        function windowResized() {
+            let container = document.getElementById('canvas-container');
+            resizeCanvas(container.clientWidth, container.clientHeight);
+        }
+    </script>
+</body>
+</html>
