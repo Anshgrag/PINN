@@ -4,6 +4,8 @@ torchaudio
 fastapi
 uvicorn
 numpy
+scipy
+matplotlib
 pydantic
 pytest
 httpx

@@ -41,8 +41,8 @@ def compute_physics_loss(model, points):
     loss_continuity = torch.mean(continuity_residual ** 2)
     
     # 2. Boundary Wall Restrictions (Building Mask)
-    # Treat extreme elevations (e.g., B > 900) as solid city buildings
-    building_mask = (B > 900.0).float()
+    # Treat elevations above 5.0m as solid city buildings in our synthetic model
+    building_mask = (B > 5.0).float()
     
     # Penalize any non-zero velocity where there is a building (water flows around, not through)
     velocity_mag_squared = (u ** 2) + (v ** 2)
