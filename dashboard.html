@@ -191,6 +191,72 @@
             backdrop-filter: blur(4px);
         }
 
+        /* --- MODAL LAYER --- */
+        #modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(8px);
+            pointer-events: auto;
+        }
+
+        .report-modal {
+            background: var(--panel-bg);
+            border: 1px solid var(--accent-neon);
+            width: 500px;
+            padding: 32px;
+            box-shadow: 0 0 50px rgba(0, 255, 65, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .report-header {
+            border-bottom: 1px solid #2A2E37;
+            padding-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .report-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .report-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .report-label {
+            font-size: 0.6rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        .report-value {
+            font-size: 1.1rem;
+            color: var(--accent-neon);
+            font-weight: bold;
+        }
+
+        .grade-box {
+            font-size: 3rem;
+            font-weight: bold;
+            color: var(--accent-neon);
+            text-align: center;
+            padding: 10px;
+            border: 2px solid var(--accent-neon);
+            margin: 10px 0;
+        }
+
         .grid-info {
             position: absolute;
             bottom: 24px;
@@ -215,6 +281,38 @@
 </head>
 <body>
 
+    <div id="modal-overlay">
+        <div class="report-modal">
+            <div class="report-header">
+                <h2 style="color: var(--accent-neon);">FLOOD RESILIENCE REPORT</h2>
+                <div id="report-status" style="font-size: 0.7rem; padding: 4px 8px; border: 1px solid var(--accent-neon);">PASS</div>
+            </div>
+            <div class="grade-box" id="report-grade">A</div>
+            <div class="report-grid">
+                <div class="report-item">
+                    <span class="report-label">Min Resilience Score</span>
+                    <span class="report-value" id="report-min-res">94.2</span>
+                </div>
+                <div class="report-item">
+                    <span class="report-label">Peak Inundation</span>
+                    <span class="report-value" id="report-peak-inun">1.2%</span>
+                </div>
+                <div class="report-item">
+                    <span class="report-label">Peak Building Exposure</span>
+                    <span class="report-value" id="report-peak-exp">0.0%</span>
+                </div>
+                <div class="report-item">
+                    <span class="report-label">Event Duration</span>
+                    <span class="report-value">72 Hours</span>
+                </div>
+            </div>
+            <div id="report-summary" style="font-size: 0.8rem; color: var(--text-main); line-height: 1.4; border-top: 1px solid #2A2E37; padding-top: 12px;">
+                The city's defenses effectively mitigated the tsunami surge.
+            </div>
+            <button onclick="closeReport()" class="btn-action" style="margin-top: 10px; background: var(--accent-neon); color: var(--bg-deep); font-weight: bold;">CLOSE ANALYTICS</button>
+        </div>
+    </div>
+
     <div id="ui-overlay">
         <div class="top-bar">
             <div class="status-pill">
@@ -237,8 +335,14 @@
                     <label>Rainfall Intensity <span id="rain-val">0.05</span></label>
                     <input type="range" id="rain-slider" min="0" max="1" step="0.01" value="0.05">
                     
-                    <label>Drainage Efficiency <span id="drain-val">0.02</span></label>
-                    <input type="range" id="drain-slider" min="0" max="0.5" step="0.01" value="0.02">
+                    <label>Wind Speed <span id="wind-val">0.00</span></label>
+                    <input type="range" id="wind-slider" min="0" max="50" step="1" value="0">
+
+                    <label>Viscosity <span id="visc-val">0.01</span></label>
+                    <input type="range" id="visc-slider" min="0.01" max="1.0" step="0.01" value="0.01">
+
+                    <label>Surface Friction <span id="fric-val">0.03</span></label>
+                    <input type="range" id="fric-slider" min="0.01" max="0.1" step="0.01" value="0.03">
 
                     <label>Surge Intensity <span id="surge-val">1.50</span></label>
                     <input type="range" id="surge-slider" min="0.1" max="10.0" step="0.1" value="1.50">
@@ -251,6 +355,7 @@
                 </div>
 
                 <div class="control-group">
+                    <button id="btn-report" class="btn-action" style="background: #00FF41; color: #0F1115; font-weight: bold;">📊 Run Tsunami Test (72h)</button>
                     <button id="btn-flood" class="btn-action" style="background:#4A1115; color:#FF3131; border:1px solid #FF3131;">🚨 Flash Flood</button>
                     <button id="btn-reset" class="btn-action" style="color:#E0E0E0;">🔄 Reset Engine</button>
                 </div>
@@ -272,12 +377,20 @@
                         <span class="stat-value" id="stat-depth">0.00m</span>
                     </div>
                     <div class="stat-row">
-                        <span class="stat-label">FLOOD RISK INDEX</span>
-                        <span class="stat-value" id="stat-risk">STABLE</span>
+                        <span class="stat-label">RESILIENCE SCORE</span>
+                        <span class="stat-value" id="stat-resilience" style="color: #00FF41;">100.0</span>
                     </div>
                     <div class="stat-row">
-                        <span class="stat-label">DISCHARGE RATE</span>
-                        <span class="stat-value" id="stat-discharge">0.00 m³/s</span>
+                        <span class="stat-label">INUNDATION AREA</span>
+                        <span class="stat-value" id="stat-inundation">0.0%</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">BUILDING EXPOSURE</span>
+                        <span class="stat-value" id="stat-exposure">0.0%</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">FLOOD RISK INDEX</span>
+                        <span class="stat-value" id="stat-risk">STABLE</span>
                     </div>
                 </div>
 
@@ -314,15 +427,22 @@
         let xRayMode = false;
         let isFlooding = false;
         let safetyMode = false;
+        let isSimulating = false;
 
         let buildings = [];
         let waterLevels = [];
         let targetWater = [];
         let velU = [];
         let velV = [];
+        let resilienceScore = 100.0;
+        let inundationExtent = 0.0;
+        let buildingExposure = 0.0;
 
         let rainIntensity = 0.05;
-        let drainageRate = 0.02;
+        let windSpeed = 0.0;
+        let windDirection = 45; // Fixed angle for visual simplicity
+        let fluidViscosity = 0.01;
+        let surfaceFriction = 0.03;
         let surgeIntensity = 1.5;
         let lastFetchTime = 0;
         const FETCH_INTERVAL = 2000; 
@@ -372,9 +492,17 @@
                 rainIntensity = parseFloat(e.target.value);
                 document.getElementById('rain-val').innerText = rainIntensity.toFixed(2);
             });
-            document.getElementById('drain-slider').addEventListener('input', (e) => {
-                drainageRate = parseFloat(e.target.value);
-                document.getElementById('drain-val').innerText = drainageRate.toFixed(2);
+            document.getElementById('wind-slider').addEventListener('input', (e) => {
+                windSpeed = parseFloat(e.target.value);
+                document.getElementById('wind-val').innerText = windSpeed.toFixed(0);
+            });
+            document.getElementById('visc-slider').addEventListener('input', (e) => {
+                fluidViscosity = parseFloat(e.target.value);
+                document.getElementById('visc-val').innerText = fluidViscosity.toFixed(2);
+            });
+            document.getElementById('fric-slider').addEventListener('input', (e) => {
+                surfaceFriction = parseFloat(e.target.value);
+                document.getElementById('fric-val').innerText = surfaceFriction.toFixed(2);
             });
             document.getElementById('surge-slider').addEventListener('input', (e) => {
                 surgeIntensity = parseFloat(e.target.value);
@@ -397,9 +525,11 @@
                 document.getElementById('btn-flood').style.color = isFlooding ? '#0F1115' : '#FF3131';
             });
             document.getElementById('btn-reset').addEventListener('click', resetSimulation);
+            document.getElementById('btn-report').addEventListener('click', runTsunamiTest);
         }
 
         async function fetchAIPrediction() {
+            if (isSimulating) return;
             let elevationMap = [];
             for(let i=0; i<256; i++) {
                 elevationMap[i] = [];
@@ -411,9 +541,21 @@
                 const response = await fetch('http://127.0.0.1:8000/predict', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ elevation_map: elevationMap, rainfall_intensity: rainIntensity * (isFlooding ? 20.0 : 1.0) })
+                    body: JSON.stringify({ 
+                        elevation_map: elevationMap, 
+                        rainfall_intensity: rainIntensity * (isFlooding ? 20.0 : 1.0),
+                        wind_speed: windSpeed,
+                        wind_direction: windDirection,
+                        viscosity: fluidViscosity,
+                        friction_base: surfaceFriction
+                    })
                 });
                 if (!response.ok) return;
+                
+                resilienceScore = parseFloat(response.headers.get('X-Resilience-Score') || '100');
+                inundationExtent = parseFloat(response.headers.get('X-Inundation-Extent') || '0');
+                buildingExposure = parseFloat(response.headers.get('X-Building-Exposure') || '0');
+
                 const buffer = await response.arrayBuffer();
                 const floatArray = new Float32Array(buffer);
                 for (let i = 0; i < GRID_SIZE; i++) {
@@ -425,6 +567,59 @@
                     }
                 }
             } catch (err) { console.error("AI Sync Error"); }
+        }
+
+        async function runTsunamiTest() {
+            isSimulating = true;
+            document.getElementById('btn-report').innerText = "⏳ SIMULATING...";
+            document.getElementById('btn-report').disabled = true;
+
+            let elevationMap = [];
+            for(let i=0; i<256; i++) {
+                elevationMap[i] = [];
+                for(let j=0; j<256; j++) {
+                    elevationMap[i][j] = buildings[Math.floor(i / 8)][Math.floor(j / 8)];
+                }
+            }
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/report', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        elevation_map: elevationMap, 
+                        rainfall_intensity: 0.0,
+                        wind_speed: windSpeed,
+                        wind_direction: windDirection,
+                        viscosity: fluidViscosity,
+                        friction_base: surfaceFriction
+                    })
+                });
+                const report = await response.json();
+                showReport(report);
+            } catch (err) {
+                alert("Report Generation Failed. Check Backend.");
+            } finally {
+                isSimulating = false;
+                document.getElementById('btn-report').innerText = "📊 Run Tsunami Test (72h)";
+                document.getElementById('btn-report').disabled = false;
+            }
+        }
+
+        function showReport(data) {
+            document.getElementById('modal-overlay').style.display = 'flex';
+            document.getElementById('report-grade').innerText = data.grade;
+            document.getElementById('report-status').innerText = data.passed ? "PASS" : "FAIL";
+            document.getElementById('report-status').style.color = data.passed ? "var(--accent-neon)" : "#FF3131";
+            document.getElementById('report-status').style.borderColor = data.passed ? "var(--accent-neon)" : "#FF3131";
+            document.getElementById('report-min-res').innerText = data.min_resilience_score;
+            document.getElementById('report-peak-inun').innerText = data.peak_inundation_pct + "%";
+            document.getElementById('report-peak-exp').innerText = data.peak_building_exposure_pct + "%";
+            document.getElementById('report-summary').innerText = data.summary;
+        }
+
+        function closeReport() {
+            document.getElementById('modal-overlay').style.display = 'none';
         }
 
         function resetSimulation() {
@@ -519,7 +714,6 @@
             drawParticles();
             updateStats();
             updateInspector();
-            drawCompass();
         }
 
         function drawParticles() {
@@ -611,11 +805,15 @@
             let td = 0; for (let i = 0; i < GRID_SIZE; i++) { for (let j = 0; j < GRID_SIZE; j++) td += waterLevels[i][j]; }
             let avg = td / (GRID_SIZE * GRID_SIZE);
             document.getElementById('stat-depth').innerText = avg.toFixed(2) + "m";
-            let r = "STABLE"; if (avg > 1.2) r = "CRITICAL"; else if (avg > 0.4) r = "WARNING";
+            document.getElementById('stat-resilience').innerText = resilienceScore.toFixed(1);
+            document.getElementById('stat-inundation').innerText = inundationExtent.toFixed(1) + "%";
+            document.getElementById('stat-exposure').innerText = buildingExposure.toFixed(1) + "%";
+            let resColor = '#00FF41'; if (resilienceScore < 50) resColor = '#FF3131'; else if (resilienceScore < 80) resColor = '#FFD700';
+            document.getElementById('stat-resilience').style.color = resColor;
+            let r = "STABLE"; if (avg > 1.2 || resilienceScore < 50) r = "CRITICAL"; else if (avg > 0.4 || resilienceScore < 80) r = "WARNING";
             document.getElementById('stat-risk').innerText = r;
         }
 
-        function drawCompass() {}
         function mousePressed() { if (mouseX > 320) isDragging = true; }
         function mouseReleased() { isDragging = false; }
         function mouseDragged() { if (isDragging) { panX += mouseX - pmouseX; panY += mouseY - pmouseY; } }
