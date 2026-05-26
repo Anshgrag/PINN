@@ -107,23 +107,30 @@
             </div>
             <div class="telemetry-box">
                 <div style="font-size: 0.6rem; color: var(--accent-neon); margin-bottom: 4px; letter-spacing: 2px;">STRUCTURAL_DIAGNOSTICS</div>
-                <div class="stat-row"><span class="stat-label">Hydro-Resistance (SH)</span><span class="stat-value" id="stat-sh">0.00</span></div>
-                <div class="stat-row"><span class="stat-label">Volumetric Pooling (SP)</span><span class="stat-value" id="stat-sp">0.00</span></div>
-                <div class="stat-row"><span class="stat-label">Structural Exposure (SE)</span><span class="stat-value" id="stat-se">0.00</span></div>
-                <div class="stat-row"><span class="stat-label">Debris Impact Index (SD)</span><span class="stat-value" id="stat-sd">0.00</span></div>
+                <div class="stat-row"><span class="stat-label">Hydro-Resistance (SH)</span><span class="stat-value"><span id="stat-sh">0.00</span> <small>idx</small></span></div>
+                <div class="stat-row"><span class="stat-label">Volumetric Pooling (SP)</span><span class="stat-value"><span id="stat-sp">0.00</span> <small>idx</small></span></div>
+                <div class="stat-row"><span class="stat-label">Structural Exposure (SE)</span><span class="stat-value"><span id="stat-se">0.00</span> <small>idx</small></span></div>
+                <div class="stat-row"><span class="stat-label">Debris Impact Index (SD)</span><span class="stat-value"><span id="stat-sd">0.00</span> <small>idx</small></span></div>
                 
                 <div style="height: 1px; background: rgba(255,255,255,0.1); margin: 8px 0;"></div>
                 
                 <div style="font-size: 0.6rem; color: #FFD700; margin-bottom: 4px; letter-spacing: 2px;">PHYSICS_LOAD_METRICS</div>
-                <div class="stat-row"><span class="stat-label">Peak Hydro-Momentum</span><span class="stat-value" id="val-hydro-peak">0.0</span></div>
-                <div class="stat-row"><span class="stat-label">Peak Impact Energy (Ek)</span><span class="stat-value" id="val-ke-peak">0.0</span></div>
-                <div class="stat-row"><span class="stat-label">Heavy Debris Strikes</span><span class="stat-value" id="val-heavy-hits">0</span></div>
+                <div class="stat-row"><span class="stat-label">Peak Hydro-Momentum</span><span class="stat-value"><span id="val-hydro-peak">0.0</span> <small>m³/s²</small></span></div>
+                <div class="stat-row"><span class="stat-label">Peak Impact Energy (Ek)</span><span class="stat-value"><span id="val-ke-peak">0.0</span> <small>kJ</small></span></div>
+                <div class="stat-row"><span class="stat-label">Heavy Debris Strikes</span><span class="stat-value"><span id="val-heavy-hits">0</span> <small>pts</small></span></div>
             </div>
 
             <div class="telemetry-box" style="border-left: 2px solid var(--danger-neon);">
                 <div style="font-size: 0.6rem; color: var(--danger-neon); margin-bottom: 8px; letter-spacing: 2px;">MATERIAL_DAMAGE_SUMMARY</div>
-                <div class="stat-row"><span class="stat-label">RC Buildings Destroyed</span><span class="stat-value" id="report-rc">0 / 0</span></div>
-                <div class="stat-row"><span class="stat-label">Masonry Destroyed</span><span class="stat-value" id="report-masonry">0 / 0</span></div>
+                <div class="stat-row"><span class="stat-label">RC Buildings Destroyed</span><span class="stat-value"><span id="report-rc">0 / 0</span> <small>qty</small></span></div>
+                <div class="stat-row"><span class="stat-label">Masonry Destroyed</span><span class="stat-value"><span id="report-masonry">0 / 0</span> <small>qty</small></span></div>
+            </div>
+
+            <div class="telemetry-box" style="border-left: 2px solid var(--warning-amber);">
+                <div style="font-size: 0.6rem; color: var(--warning-amber); margin-bottom: 8px; letter-spacing: 2px;">STOCHASTIC_NOISE_ANALYSIS</div>
+                <div class="stat-row"><span class="stat-label">Debris Mass Noise</span><span class="stat-value"><span id="val-noise-mass">0.00</span> <small>kg</small></span></div>
+                <div class="stat-row"><span class="stat-label">Impact Probability Noise</span><span class="stat-value"><span id="val-noise-impact">0.00</span> <small>stk/f</small></span></div>
+                <div class="stat-row"><span class="stat-label">Structural Yield Jitter</span><span class="stat-value" id="val-noise-jitter">±2.4%</span></div>
             </div>
 
             <div id="summary-panel" class="telemetry-box" style="margin-top: auto; border-left: 2px solid var(--accent-neon); opacity: 0.5;">
@@ -165,6 +172,7 @@
         let waveHeight = 5.0, waveVelocity = 15.0, mitigationEff = 0.0, surgeDuration = 2.0, drainageEff = 0.05, selectedDefense = 'none';
         let timerFrames = 0, totalSimulationFrames = 0;
         let peakHydroMomentum = 0, peakKE = 0, heavyStrikes = 0;
+        let noiseMassDist = 0, noiseImpactRate = 0, noiseImpactCount = 0;
         let particles = []; const MAX_PARTICLES = 250;
 
         function initializeCityLayout() {
@@ -252,6 +260,7 @@
             currentState = STATES.ANALYZING; isSimulating = true;
             totalSimulationFrames = 600; timerFrames = totalSimulationFrames;
             peakHydroMomentum = 0; peakKE = 0; heavyStrikes = 0;
+            noiseMassDist = 0; noiseImpactCount = 0;
             document.getElementById('btn-launch').innerText = "SIMULATING..."; document.getElementById('btn-launch').classList.remove('btn-flood');
             document.getElementById('summary-h').innerText = waveHeight.toFixed(1) + "m"; document.getElementById('summary-v').innerText = waveVelocity.toFixed(1) + "m/s"; document.getElementById('summary-t').innerText = surgeDuration.toFixed(1) + " hrs";
             updateUIState();
@@ -260,10 +269,12 @@
         function resetSimulation() {
             currentState = STATES.CONFIGURING; isSimulating = false; timerFrames = 0;
             peakHydroMomentum = 0; peakKE = 0; heavyStrikes = 0;
+            noiseMassDist = 0; noiseImpactCount = 0;
             for (let i = 0; i < GRID_HEIGHT; i++) for (let j = 0; j < GRID_WIDTH; j++) { waterLevels[i][j] = 0; targetWater[i][j] = 0; velU[i][j] = 0; velV[i][j] = 0; debrisHits[i][j] = 0; buildingHealth[i][j] = 100; }
             document.getElementById('btn-launch').innerText = "LAUNCH SIMULATION"; document.getElementById('btn-launch').classList.add('btn-flood');
             document.getElementById('stat-sh').innerText = "0.00"; document.getElementById('stat-sp').innerText = "0.00"; document.getElementById('stat-se').innerText = "0.00"; document.getElementById('stat-sd').innerText = "0.00";
             document.getElementById('val-hydro-peak').innerText = "0.0"; document.getElementById('val-ke-peak').innerText = "0.0"; document.getElementById('val-heavy-hits').innerText = "0";
+            document.getElementById('val-noise-mass').innerText = "0.00"; document.getElementById('val-noise-impact').innerText = "0.000";
             const ratingEl = document.getElementById('resilience-rating'); if (ratingEl) { ratingEl.innerText = "N/A"; ratingEl.style.color = "var(--success-neon)"; }
             initializeCityLayout(); updateUIState();
         }
@@ -294,18 +305,28 @@
                                 if (tot > tT) { let flow = (tot - tT) * 0.2 * n.w; flow = min(flow, w * 0.6); nextWaterBuffer[i][j] -= flow; nextWaterBuffer[ni][nj] += flow; w -= flow; tot -= flow; }
                             }
                         }
-                        if (buildings[i][j] > 0 && w > 0.5) {
-                            let hydroMomentum = w * (waveVelocity * waveVelocity);
-                            if (hydroMomentum > peakHydroMomentum) peakHydroMomentum = hydroMomentum;
-                            let yieldThreshold = materials[i][j] === 3 ? 1200 : (materials[i][j] === 2 ? 600 : 250);
-                            let fragility = materials[i][j] === 3 ? 0.00005 : (materials[i][j] === 2 ? 0.0002 : 0.001);
-                            if (hydroMomentum > yieldThreshold) buildingHealth[i][j] -= (hydroMomentum - yieldThreshold) * fragility;
+                        
+                        if (buildings[i][j] > 0) {
+                            // Calculate momentum based on pressure depth (including water hitting the side)
+                            let pressureDepth = w;
+                            if (j > 0) pressureDepth = max(w, targetWater[i][j-1]);
+
+                            if (pressureDepth > 0.5) {
+                                let hydroMomentum = pressureDepth * (waveVelocity * waveVelocity);
+                                if (hydroMomentum > peakHydroMomentum) peakHydroMomentum = hydroMomentum;
+                                let yieldThreshold = materials[i][j] === 3 ? 1200 : (materials[i][j] === 2 ? 600 : 250);
+                                let fragility = materials[i][j] === 3 ? 0.00005 : (materials[i][j] === 2 ? 0.0002 : 0.001);
+                                if (hydroMomentum > yieldThreshold) buildingHealth[i][j] -= (hydroMomentum - yieldThreshold) * fragility;
+                            }
                         }
                     }
                 }
                 for (let p of particles) {
                     let ix = floor(p.x), iy = floor(p.y);
-                    if (p.mass === undefined) { let r = random(); p.mass = r < 0.7 ? 5 : (r < 0.95 ? 10 : 20); }
+                    if (p.mass === undefined) { 
+                        let r = random(); p.mass = r < 0.7 ? 5 : (r < 0.95 ? 10 : 20); 
+                        noiseMassDist += p.mass;
+                    }
                     if (ix >= 0 && ix < GRID_WIDTH && iy >= 0 && iy < GRID_HEIGHT) {
                         p.x += (1.0 + waveVelocity * 0.05); p.y += random(-0.1, 0.1);
                         if (buildings[iy][ix] > 0 && !p.hasCollided) {
@@ -314,7 +335,11 @@
                             if (p.mass === 20) heavyStrikes++;
                             let yieldThreshold = materials[iy][ix] === 3 ? 1200 : (materials[iy][ix] === 2 ? 600 : 250);
                             let fragility = materials[iy][ix] === 3 ? 0.005 : (materials[iy][ix] === 2 ? 0.02 : 0.1);
-                            if (ek > yieldThreshold) { buildingHealth[iy][ix] -= (ek - yieldThreshold) * fragility; debrisHits[iy][ix] = 1; p.hasCollided = true; }
+                            if (ek > yieldThreshold) { 
+                                buildingHealth[iy][ix] -= (ek - yieldThreshold) * fragility; 
+                                debrisHits[iy][ix] = 1; p.hasCollided = true; 
+                                noiseImpactCount++;
+                            }
                         }
                     }
                     p.life -= 1; if (p.life <= 0 || p.x >= GRID_WIDTH) { p.x = 0; p.y = random(0, GRID_HEIGHT); p.life = random(40, 100); p.mass = undefined; p.hasCollided = false; }
@@ -353,6 +378,10 @@
             document.getElementById('val-heavy-hits').innerText = heavyStrikes;
             document.getElementById('report-rc').innerText = `${destroyedRC} / ${totalRC}`;
             document.getElementById('report-masonry').innerText = `${destroyedMasonry} / ${totalMasonry}`;
+
+            // Update Stochastic Noise Reporting
+            document.getElementById('val-noise-mass').innerText = (noiseMassDist / (totalSimulationFrames - timerFrames + 1)).toFixed(2);
+            document.getElementById('val-noise-impact').innerText = (noiseImpactCount / (totalSimulationFrames - timerFrames + 1)).toFixed(3);
         }
 
         function calculateFinalRating() {
