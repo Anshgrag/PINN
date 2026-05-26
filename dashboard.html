@@ -3,624 +3,475 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ISO-FLOOD | Urban Analytics Engine</title>
+    <title>TSUNAMI_RES | Urban Resilience Engine</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-deep: #0F1115;
-            --panel-bg: #1A1D24;
-            --building-base: #3C4048;
-            --water-primary: rgba(0, 191, 255, 0.6);
-            --accent-neon: #00FF41;
-            --text-main: #E0E0E0;
-            --text-dim: #6A6E77;
-            --border-glow: rgba(0, 255, 65, 0.3);
+            --bg-deep: #08090B;
+            --panel-bg: rgba(16, 18, 23, 0.9);
+            --accent-neon: #00F3FF;
+            --danger-neon: #FF0055;
+            --success-neon: #00FF95;
+            --text-main: #C0C5CE;
+            --text-dim: #4B5263;
+            --border-glow: rgba(0, 243, 255, 0.2);
         }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        body {
-            background-color: var(--bg-deep);
-            color: var(--text-main);
-            overflow: hidden;
-            height: 100vh;
-            display: flex;
-        }
-
-        /* --- UI LAYER --- */
-        #ui-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 10;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 24px;
-        }
-
-        .sidebar {
-            width: 320px;
-            background: var(--panel-bg);
-            border: 1px solid #2A2E37;
-            border-left: 4px solid var(--accent-neon);
-            padding: 24px;
-            pointer-events: auto;
-            box-shadow: 20px 0 50px rgba(0,0,0,0.5);
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            overflow-y: auto;
-        }
-
-        .header h1 {
-            font-size: 1.2rem;
-            letter-spacing: 2px;
-            color: var(--accent-neon);
-            margin-bottom: 4px;
-        }
-
-        .header p {
-            font-size: 0.7rem;
-            color: var(--text-dim);
-            text-transform: uppercase;
-        }
-
-        .control-group {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        label {
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            color: var(--text-dim);
-            display: flex;
-            justify-content: space-between;
-        }
-
-        label span {
-            color: var(--accent-neon);
-        }
-
-        input[type="range"] {
-            -webkit-appearance: none;
-            width: 100%;
-            background: #2A2E37;
-            height: 4px;
-            border-radius: 2px;
-            outline: none;
-        }
-
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 16px;
-            height: 16px;
-            background: var(--accent-neon);
-            cursor: pointer;
-            border-radius: 50%;
-            box-shadow: 0 0 10px var(--accent-neon);
-        }
-
-        .telemetry-box {
-            background: rgba(0,0,0,0.2);
-            border: 1px solid #2A2E37;
-            padding: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .stat-label {
-            font-size: 0.65rem;
-            color: var(--text-dim);
-        }
-
-        .stat-value {
-            font-size: 0.9rem;
-            color: var(--accent-neon);
-            font-weight: bold;
-        }
-
-        .top-bar {
-            width: 100%;
-            height: 40px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 20px;
-            background: rgba(26, 29, 36, 0.8);
-            border-bottom: 1px solid #2A2E37;
-            pointer-events: auto;
-        }
-
-        .status-pill {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.7rem;
-        }
-
-        .dot {
-            width: 8px;
-            height: 8px;
-            background: var(--accent-neon);
-            border-radius: 50%;
-            animation: pulse 1.5s infinite;
-        }
-
-        @keyframes pulse {
-            0% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.4; transform: scale(1.2); }
-            100% { opacity: 1; transform: scale(1); }
-        }
-
-        #canvas-container {
-            flex-grow: 1;
-            position: relative;
-            background-color: var(--bg-deep);
-        }
-
-        #data-inspector {
-            position: absolute;
-            background: rgba(15, 17, 21, 0.95);
-            border: 1px solid var(--accent-neon);
-            padding: 12px;
-            font-size: 0.65rem;
-            color: var(--text-main);
-            pointer-events: none;
-            z-index: 100;
-            display: none;
-            box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
-            backdrop-filter: blur(4px);
-        }
-
-        .grid-info {
-            position: absolute;
-            bottom: 24px;
-            right: 24px;
-            color: var(--text-dim);
-            font-size: 0.7rem;
-            text-align: right;
-        }
-
-        .btn-action {
-            background:#262B35; 
-            color:#00FF66; 
-            border:1px solid #3C4048; 
-            padding:8px 12px; 
-            cursor:pointer; 
-            width:100%; 
-            font-family:inherit; 
-            text-transform:uppercase;
-            font-size: 0.7rem;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'JetBrains Mono', monospace; }
+        body { background-color: var(--bg-deep); color: var(--text-main); overflow: hidden; height: 100vh; display: flex; flex-direction: column; }
+        .dashboard-container { display: grid; grid-template-columns: 30% 45% 25%; grid-template-rows: calc(100vh - 120px) 120px; height: 100vh; width: 100vw; }
+        .col-left, .col-right { background: var(--panel-bg); backdrop-filter: blur(12px); padding: 30px; display: flex; flex-direction: column; gap: 24px; overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.05); }
+        .col-center { position: relative; background-color: var(--bg-deep); border-left: 1px solid rgba(255, 255, 255, 0.05); border-right: 1px solid rgba(255, 255, 255, 0.05); }
+        .bottom-timeline { grid-column: span 3; background: #0A0C10; border-top: 1px solid var(--border-glow); padding: 20px 60px; display: flex; flex-direction: column; justify-content: center; }
+        .header h1 { font-size: 1.2rem; letter-spacing: 3px; color: var(--accent-neon); text-shadow: 0 0 15px var(--accent-neon); margin-bottom: 6px; }
+        .header p { font-size: 0.6rem; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; }
+        .status-badge { display: inline-block; padding: 4px 8px; font-size: 0.55rem; border-radius: 2px; font-weight: 700; margin-bottom: 10px; letter-spacing: 1px; }
+        .status-configuring { background: rgba(255, 255, 255, 0.1); color: #FFF; }
+        .status-analyzing { background: rgba(0, 243, 255, 0.2); color: var(--accent-neon); animation: pulse 2s infinite; }
+        .status-reporting { background: rgba(0, 255, 149, 0.2); color: var(--success-neon); }
+        @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+        .control-group { display: flex; flex-direction: column; gap: 14px; }
+        .control-group.disabled { opacity: 0.3; pointer-events: none; }
+        label { font-size: 0.7rem; text-transform: uppercase; color: var(--text-dim); display: flex; justify-content: space-between; margin-bottom: 4px; }
+        label span { color: var(--accent-neon); }
+        input[type="range"] { -webkit-appearance: none; width: 100%; background: #1A1D23; height: 2px; outline: none; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; background: var(--accent-neon); cursor: pointer; border-radius: 2px; }
+        .telemetry-box { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-left: 2px solid var(--accent-neon); padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .stat-row { display: flex; justify-content: space-between; align-items: center; }
+        .stat-label { font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase; }
+        .stat-value { font-size: 0.8rem; color: var(--accent-neon); font-weight: 700; }
+        .btn-action { background: rgba(255,255,255,0.03); color: var(--text-main); border: 1px solid rgba(255,255,255,0.1); padding: 12px; cursor: pointer; width: 100%; font-family: inherit; text-transform: uppercase; font-size: 0.65rem; letter-spacing: 1px; transition: all 0.2s; }
+        .btn-action:hover { background: rgba(0, 243, 255, 0.1); border-color: var(--accent-neon); color: var(--accent-neon); }
+        .btn-flood { background: rgba(0, 243, 255, 0.1); color: var(--accent-neon); border: 1px solid var(--accent-neon); font-weight: 700; box-shadow: 0 0 20px rgba(0, 243, 255, 0.2); }
+        .btn-flood:hover { background: var(--accent-neon); color: var(--bg-deep); box-shadow: 0 0 30px var(--accent-neon); }
+        .timeline-axis { position: relative; width: 100%; height: 4px; background: #1A1D23; border-radius: 2px; margin-top: 30px; }
+        .timeline-node { position: absolute; top: -8px; width: 16px; height: 16px; background: #2A2E37; border: 2px solid var(--text-dim); border-radius: 50%; transform: translateX(-50%); cursor: help; }
+        .timeline-label { position: absolute; top: 20px; font-size: 0.55rem; color: var(--text-dim); white-space: nowrap; transform: translateX(-50%); text-align: center; }
+        #user-marker { position: absolute; top: -12px; width: 4px; height: 28px; background: #FFF; box-shadow: 0 0 15px #FFF; transform: translateX(-50%); transition: left 0.3s ease; z-index: 10; }
+        #user-marker::after { content: 'TARGET SCALE'; position: absolute; top: -20px; left: 50%; transform: translateX(-50%); font-size: 0.5rem; color: #FFF; white-space: nowrap; font-weight: 700; }
+        #timer-display { position: absolute; top: 20px; right: 20px; font-size: 2rem; font-weight: 700; color: var(--accent-neon); text-shadow: 0 0 20px var(--accent-neon); z-index: 100; opacity: 0; transition: opacity 0.5s; }
+        #data-inspector { position: absolute; background: rgba(10, 12, 16, 0.9); border-left: 2px solid var(--accent-neon); padding: 12px 18px; font-size: 0.7rem; color: #FFF; pointer-events: none; z-index: 200; display: none; top: 20px; left: 20px; border-radius: 4px; }
     </style>
 </head>
 <body>
-
-    <div id="ui-overlay">
-        <div class="top-bar">
-            <div class="status-pill">
-                <div class="dot"></div>
-                SYSTEM: ACTIVE | ENGINE: ISOMETRIC_2.5D
+    <div class="dashboard-container">
+        <div class="col-left" id="panel-config">
+            <div class="header">
+                <div id="badge-status" class="status-badge status-configuring">1. CONFIGURE</div>
+                <h1>TSUNAMI_RES</h1>
+                <p>Simulation Parameters</p>
             </div>
-            <div style="font-size: 0.7rem; color: var(--text-dim);">
-                COORD_SYS: WGS84_MOCK | EPSG: 3857
+            <div class="control-group" id="sliders-group">
+                <label>Wave Height (Hw) <span><span id="wave-val">5.0</span>m</span></label>
+                <input type="range" id="wave-slider" min="1" max="50" step="0.5" value="5.0">
+
+                <label>Wave Velocity (v) <span><span id="velocity-val">15.0</span>m/s</span></label>
+                <input type="range" id="velocity-slider" min="5" max="40" step="1" value="15">
+
+                <label>Coastal Protection Option</label>
+                <select id="defense-selector" class="btn-action" style="background: rgba(0, 243, 255, 0.05); color: var(--accent-neon); border-color: var(--accent-neon); text-align: left; padding: 10px;">
+                    <option value="none">OPTION 4: No Defense (Baseline)</option>
+                    <option value="seawall">OPTION 1: RC Seawall (Kamaishi Style)</option>
+                    <option value="tetrapod">OPTION 2: Tetrapod Breakwater Array</option>
+                    <option value="mangrove">OPTION 3: Mangrove Eco-Shield</option>
+                </select>
+
+                <label>Tsunami Duration <span><span id="duration-val">2.0</span> hrs</span></label>
+                <input type="range" id="duration-slider" min="0.5" max="12" step="0.5" value="2.0">
+
+                <label>Drainage Efficiency <span><span id="drainage-val">0.05</span>x</span></label>
+                <input type="range" id="drainage-slider" min="0.01" max="0.5" step="0.01" value="0.05">
             </div>
-        </div>
-
-        <div style="display: flex; height: calc(100% - 40px);">
-            <div class="sidebar">
-                <div class="header">
-                    <h1>METRO_FLOOD</h1>
-                    <p>Urban Resilience Simulation v1.0.4</p>
-                </div>
-
-                <div class="control-group">
-                    <label>Rainfall Intensity <span id="rain-val">0.05</span></label>
-                    <input type="range" id="rain-slider" min="0" max="1" step="0.01" value="0.05">
-                    
-                    <label>Drainage Efficiency <span id="drain-val">0.02</span></label>
-                    <input type="range" id="drain-slider" min="0" max="0.5" step="0.01" value="0.02">
-
-                    <label>Surge Intensity <span id="surge-val">1.50</span></label>
-                    <input type="range" id="surge-slider" min="0.1" max="10.0" step="0.1" value="1.50">
-                </div>
-
-                <div class="control-group">
-                    <button id="btn-rotate" class="btn-action">🔄 Rotate Camera</button>
-                    <button id="btn-xray" class="btn-action">👁️ Toggle X-Ray</button>
-                    <button id="btn-safety" class="btn-action" style="color:#FFD700;">🛡️ Safety Risk</button>
-                </div>
-
-                <div class="control-group">
-                    <button id="btn-flood" class="btn-action" style="background:#4A1115; color:#FF3131; border:1px solid #FF3131;">🚨 Flash Flood</button>
-                    <button id="btn-reset" class="btn-action" style="color:#E0E0E0;">🔄 Reset Engine</button>
-                </div>
-
-                <div class="telemetry-box" style="border-top: 2px solid var(--accent-neon); background: rgba(0,255,65,0.05);">
-                    <div style="font-size: 0.6rem; color: var(--accent-neon); margin-bottom: 8px; letter-spacing: 1px;">CIVIL ENGINEERING</div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                        <button onclick="spawnDefense('levee')" style="background:#1A1D24; color:#E0E0E0; border:1px solid #3C4048; font-size:0.6rem; padding:6px; cursor:pointer; text-transform:uppercase;">🏗️ Levee</button>
-                        <button onclick="spawnDefense('breaker')" style="background:#1A1D24; color:#E0E0E0; border:1px solid #3C4048; font-size:0.6rem; padding:6px; cursor:pointer; text-transform:uppercase;">🏗️ Breaker</button>
-                        <button onclick="spawnDefense('channel')" style="background:#1A1D24; color:#E0E0E0; border:1px solid #3C4048; font-size:0.6rem; padding:6px; cursor:pointer; text-transform:uppercase;">🏗️ Diversion</button>
-                        <button onclick="spawnDefense('friction')" style="background:#1A1D24; color:#E0E0E0; border:1px solid #3C4048; font-size:0.6rem; padding:6px; cursor:pointer; text-transform:uppercase;">🏗️ Tetrapods</button>
-                        <button onclick="spawnDefense('clear')" style="background:#4A1115; color:#FF3131; border:1px solid #FF3131; font-size:0.6rem; padding:6px; cursor:pointer; text-transform:uppercase;">❌ Clear</button>
-                    </div>
-                </div>
-
-                <div class="telemetry-box">
-                    <div class="stat-row">
-                        <span class="stat-label">AVG WATER DEPTH</span>
-                        <span class="stat-value" id="stat-depth">0.00m</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">FLOOD RISK INDEX</span>
-                        <span class="stat-value" id="stat-risk">STABLE</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">DISCHARGE RATE</span>
-                        <span class="stat-value" id="stat-discharge">0.00 m³/s</span>
-                    </div>
-                </div>
-
-                <div style="margin-top: auto; font-size: 0.6rem; color: var(--text-dim); line-height: 1.5;">
-                    // PINN INFERENCE ENGINE ACTIVE<br>
-                    // 3D FLUID DIFFUSION ENABLED
+            <div class="control-group">
+                <button id="btn-launch" class="btn-action btn-flood">LAUNCH SIMULATION</button>
+                <button id="btn-reset" class="btn-action">RESET ENGINE</button>
+            </div>
+            <div class="telemetry-box">
+                <div style="font-size: 0.6rem; color: var(--accent-neon); margin-bottom: 8px; letter-spacing: 2px;">ENVIRONMENT_VIEW</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                    <button id="btn-rotate" class="btn-action">Rotate</button>
+                    <button id="btn-xray" class="btn-action">X-Ray</button>
+                    <button id="btn-safety" class="btn-action" style="grid-column: span 2;">Safety Analysis</button>
                 </div>
             </div>
         </div>
+        <div class="col-center" id="canvas-container">
+            <div id="timer-display">00:00h</div>
+            <div id="data-inspector"></div>
+        </div>
+        <div class="col-right" id="panel-report">
+            <div class="header">
+                <div id="badge-analysis" class="status-badge status-configuring" style="opacity: 0.5;">2. ANALYZE</div>
+                <h1>ENGINEERING REPORT</h1>
+                <p>Structural Diagnostics</p>
+            </div>
+            <div class="telemetry-box">
+                <div style="font-size: 0.6rem; color: var(--accent-neon); margin-bottom: 4px; letter-spacing: 2px;">STRUCTURAL_DIAGNOSTICS</div>
+                <div class="stat-row"><span class="stat-label">Hydro-Resistance (SH)</span><span class="stat-value" id="stat-sh">0.00</span></div>
+                <div class="stat-row"><span class="stat-label">Volumetric Pooling (SP)</span><span class="stat-value" id="stat-sp">0.00</span></div>
+                <div class="stat-row"><span class="stat-label">Structural Exposure (SE)</span><span class="stat-value" id="stat-se">0.00</span></div>
+                <div class="stat-row"><span class="stat-label">Debris Impact Index (SD)</span><span class="stat-value" id="stat-sd">0.00</span></div>
+                
+                <div style="height: 1px; background: rgba(255,255,255,0.1); margin: 8px 0;"></div>
+                
+                <div style="font-size: 0.6rem; color: #FFD700; margin-bottom: 4px; letter-spacing: 2px;">PHYSICS_LOAD_METRICS</div>
+                <div class="stat-row"><span class="stat-label">Peak Hydro-Momentum</span><span class="stat-value" id="val-hydro-peak">0.0</span></div>
+                <div class="stat-row"><span class="stat-label">Peak Impact Energy (Ek)</span><span class="stat-value" id="val-ke-peak">0.0</span></div>
+                <div class="stat-row"><span class="stat-label">Heavy Debris Strikes</span><span class="stat-value" id="val-heavy-hits">0</span></div>
+            </div>
 
-        <div class="grid-info">
-            LAT: 40.7128° N | LON: 74.0060° W<br>
-            GRID: 32 x 32 UNITS
+            <div class="telemetry-box" style="border-left: 2px solid var(--danger-neon);">
+                <div style="font-size: 0.6rem; color: var(--danger-neon); margin-bottom: 8px; letter-spacing: 2px;">MATERIAL_DAMAGE_SUMMARY</div>
+                <div class="stat-row"><span class="stat-label">RC Buildings Destroyed</span><span class="stat-value" id="report-rc">0 / 0</span></div>
+                <div class="stat-row"><span class="stat-label">Masonry Destroyed</span><span class="stat-value" id="report-masonry">0 / 0</span></div>
+            </div>
+
+            <div id="summary-panel" class="telemetry-box" style="margin-top: auto; border-left: 2px solid var(--accent-neon); opacity: 0.5;">
+                <div style="font-size: 0.6rem; color: var(--accent-neon); margin-bottom: 12px; letter-spacing: 2px;">TIME_LAPSE_SUMMARY</div>
+                <div class="stat-row"><span class="stat-label">Peak Input Height</span><span class="stat-value" id="summary-h">0.0m</span></div>
+                <div class="stat-row"><span class="stat-label">Target Velocity</span><span class="stat-value" id="summary-v">0.0m/s</span></div>
+                <div class="stat-row"><span class="stat-label">Total Wave Runtime</span><span class="stat-value" id="summary-t">0s</span></div>
+                <div class="stat-row" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);">
+                    <span class="stat-label" style="color: #FFF;">RESILIENCE_RATING</span>
+                    <span class="stat-value" id="resilience-rating" style="color: var(--success-neon);">N/A</span>
+                </div>
+            </div>
+        </div>
+        <div class="bottom-timeline">
+            <div style="font-size: 0.7rem; color: var(--accent-neon); letter-spacing: 2px; font-weight: 700;">HISTORICAL_HEIGHT_SCALING_AXIS (Height | Velocity | Duration)</div>
+            <div class="timeline-axis">
+                <div id="user-marker" style="left: 10%;"></div>
+                <!-- Linear Scale positions: (Height / 50) * 100 -->
+                <div class="timeline-node" style="left: 22%;"><div class="timeline-label">2018 Palu<br>11m | 22m/s | 5m</div></div>
+                <div class="timeline-node" style="left: 30%;"><div class="timeline-label">1755 Lisbon<br>15m | 6m/s | 20m</div></div>
+                <div class="timeline-node" style="left: 35%;"><div class="timeline-label">1998 PNG<br>17m | 18m/s | 10m</div></div>
+                <div class="timeline-node" style="left: 40%;"><div class="timeline-label">2010 Maule<br>20m | 8m/s | 4h</div></div>
+                <div class="timeline-node" style="left: 50%;"><div class="timeline-label">1960 Valdivia<br>25m | 15m/s | 8h</div></div>
+                <div class="timeline-node" style="left: 60%;"><div class="timeline-label">2004 Sumatra<br>30m | 9m/s | 7h</div></div>
+                <div class="timeline-node" style="left: 70%;"><div class="timeline-label">1946 Aleutian<br>35m | 10m/s | 25m</div></div>
+                <div class="timeline-node" style="left: 80%;"><div class="timeline-label">2011 Tohoku<br>40m | 11m/s | 6h</div></div>
+                <div class="timeline-node" style="left: 92%;"><div class="timeline-label">1883 Krakatoa<br>46m | 15m/s | 30m</div></div>
+            </div>
         </div>
     </div>
-
-    <div id="canvas-container">
-        <div id="data-inspector"></div>
-    </div>
-
     <script>
-        const GRID_SIZE = 32;
-        const TILE_W = 48;
-        const TILE_H = 24;
-        const HEIGHT_SCALE = 12;
+        const STATES = { CONFIGURING: 'CONFIGURING', ANALYZING: 'ANALYZING', REPORTING: 'REPORTING' };
+        let currentState = STATES.CONFIGURING;
+        const GRID_WIDTH = 64, GRID_HEIGHT = 32, TILE_W = 40, TILE_H = 20, HEIGHT_SCALE = 6; 
+        let zoomScale = 0.9, panX = 0, panY = 0, targetZoom = 0.9, targetPanX = 0, targetPanY = 0;
+        let isDragging = false, currentRotation = 0, xRayMode = false, safetyMode = false, isSimulating = false;
+        let buildings, materials, waterLevels, targetWater, nextWaterBuffer, velU, velV, debrisHits, buildingHealth;
+        let hoveredTile = { x: -1, y: -1 };
+        let waveHeight = 5.0, waveVelocity = 15.0, mitigationEff = 0.0, surgeDuration = 2.0, drainageEff = 0.05, selectedDefense = 'none';
+        let timerFrames = 0, totalSimulationFrames = 0;
+        let peakHydroMomentum = 0, peakKE = 0, heavyStrikes = 0;
+        let particles = []; const MAX_PARTICLES = 250;
 
-        let zoomScale = 1.0;
-        let minZoom = 0.2;
-        let maxZoom = 4.0;
-        let panX = 0;
-        let panY = 0;
-        let isDragging = false;
-        let currentRotation = 0;
-        let xRayMode = false;
-        let isFlooding = false;
-        let safetyMode = false;
-
-        let buildings = [];
-        let waterLevels = [];
-        let targetWater = [];
-        let velU = [];
-        let velV = [];
-
-        let rainIntensity = 0.05;
-        let drainageRate = 0.02;
-        let surgeIntensity = 1.5;
-        let lastFetchTime = 0;
-        const FETCH_INTERVAL = 2000; 
-
-        let particles = [];
-        const MAX_PARTICLES = 150;
+        function initializeCityLayout() {
+            randomSeed(42);
+            buildings = Array.from({ length: GRID_HEIGHT }, () => new Int8Array(GRID_WIDTH));
+            materials = Array.from({ length: GRID_HEIGHT }, () => new Int8Array(GRID_WIDTH));
+            waterLevels = Array.from({ length: GRID_HEIGHT }, () => new Float32Array(GRID_WIDTH));
+            targetWater = Array.from({ length: GRID_HEIGHT }, () => new Float32Array(GRID_WIDTH));
+            nextWaterBuffer = Array.from({ length: GRID_HEIGHT }, () => new Float32Array(GRID_WIDTH));
+            velU = Array.from({ length: GRID_HEIGHT }, () => new Float32Array(GRID_WIDTH));
+            velV = Array.from({ length: GRID_HEIGHT }, () => new Float32Array(GRID_WIDTH));
+            debrisHits = Array.from({ length: GRID_HEIGHT }, () => new Uint8Array(GRID_WIDTH));
+            buildingHealth = Array.from({ length: GRID_HEIGHT }, () => new Float32Array(GRID_WIDTH));
+            for (let i = 0; i < GRID_HEIGHT; i++) {
+                for (let j = 0; j < GRID_WIDTH; j++) {
+                    buildingHealth[i][j] = 100;
+                    if (j < 6 || j > GRID_WIDTH - 7) { buildings[i][j] = 0; materials[i][j] = 0; } 
+                    else {
+                        let isA = (j % 8 === 0), isS = (i % 4 === 0);
+                        if (!isA && !isS) {
+                            let r = random(), h;
+                            if (r > 0.95) { h = floor(random(25, 45)); materials[i][j] = 3; }
+                            else if (r > 0.7) { h = floor(random(10, 20)); materials[i][j] = 2; }
+                            else { h = floor(random(4, 8)); materials[i][j] = 1; }
+                            buildings[i][j] = h;
+                        } else { buildings[i][j] = 0; materials[i][j] = 0; }
+                    }
+                }
+            }
+        }
 
         function setup() {
             let container = document.getElementById('canvas-container');
             let canvas = createCanvas(container.clientWidth, container.clientHeight);
             canvas.parent('canvas-container');
-
-            panX = width / 2;
-            panY = height / 4;
-
-            canvas.mouseWheel(handleZoom);
-
-            for (let i = 0; i < GRID_SIZE; i++) {
-                buildings[i] = [];
-                waterLevels[i] = [];
-                targetWater[i] = [];
-                velU[i] = [];
-                velV[i] = [];
-                for (let j = 0; j < GRID_SIZE; j++) {
-                    buildings[i][j] = 0;
-                    waterLevels[i][j] = 0;
-                    targetWater[i][j] = 0;
-                    velU[i][j] = 0;
-                    velV[i][j] = 0;
-
-                    if (i === Math.floor(GRID_SIZE / 2) || i === Math.floor(GRID_SIZE / 2) + 1) {
-                        buildings[i][j] = 0;
-                    } else if (random() > 0.8) {
-                        buildings[i][j] = floor(random(5, 18));
-                    } else if (random() > 0.6) {
-                        buildings[i][j] = floor(random(1, 3));
-                    }
-                }
-            }
-
-            for(let i=0; i<MAX_PARTICLES; i++) {
-                particles.push({ x: random(0, GRID_SIZE), y: random(0, GRID_SIZE), life: random(20, 100) });
-            }
-
-            // Event Listeners
-            document.getElementById('rain-slider').addEventListener('input', (e) => {
-                rainIntensity = parseFloat(e.target.value);
-                document.getElementById('rain-val').innerText = rainIntensity.toFixed(2);
+            targetPanX = width / 2 - 150 * zoomScale; targetPanY = height / 2 - 150 * zoomScale;
+            panX = targetPanX; panY = targetPanY;
+            canvas.mouseWheel(handleZoom); initializeCityLayout();
+            for(let i=0; i<MAX_PARTICLES; i++) particles.push({ x: random(0, GRID_WIDTH), y: random(0, GRID_HEIGHT), life: random(20, 100) });
+            document.getElementById('wave-slider').addEventListener('input', (e) => { waveHeight = parseFloat(e.target.value); document.getElementById('wave-val').innerText = waveHeight.toFixed(1); updateTimelineMarker(); });
+            document.getElementById('velocity-slider').addEventListener('input', (e) => { waveVelocity = parseFloat(e.target.value); document.getElementById('velocity-val').innerText = waveVelocity.toFixed(1); });
+            document.getElementById('defense-selector').addEventListener('change', (e) => {
+                const val = e.target.value;
+                selectedDefense = val;
+                if (val === 'none') mitigationEff = 0.0;
+                else if (val === 'seawall') mitigationEff = 0.45;
+                else if (val === 'tetrapod') mitigationEff = 0.30;
+                else if (val === 'mangrove') mitigationEff = 0.25;
             });
-            document.getElementById('drain-slider').addEventListener('input', (e) => {
-                drainageRate = parseFloat(e.target.value);
-                document.getElementById('drain-val').innerText = drainageRate.toFixed(2);
-            });
-            document.getElementById('surge-slider').addEventListener('input', (e) => {
-                surgeIntensity = parseFloat(e.target.value);
-                document.getElementById('surge-val').innerText = surgeIntensity.toFixed(2);
-            });
+            document.getElementById('duration-slider').addEventListener('input', (e) => { surgeDuration = parseFloat(e.target.value); document.getElementById('duration-val').innerText = surgeDuration.toFixed(1); });
+            document.getElementById('drainage-slider').addEventListener('input', (e) => { drainageEff = parseFloat(e.target.value); document.getElementById('drainage-val').innerText = drainageEff.toFixed(2); });
             document.getElementById('btn-rotate').addEventListener('click', () => { currentRotation = (currentRotation + 1) % 4; });
-            document.getElementById('btn-xray').addEventListener('click', () => {
-                xRayMode = !xRayMode;
-                document.getElementById('btn-xray').style.background = xRayMode ? '#00FF41' : '#262B35';
-                document.getElementById('btn-xray').style.color = xRayMode ? '#0F1115' : '#00FF66';
-            });
-            document.getElementById('btn-safety').addEventListener('click', () => {
-                safetyMode = !safetyMode;
-                document.getElementById('btn-safety').style.background = safetyMode ? '#FFD700' : '#262B35';
-                document.getElementById('btn-safety').style.color = safetyMode ? '#0F1115' : '#FFD700';
-            });
-            document.getElementById('btn-flood').addEventListener('click', () => {
-                isFlooding = !isFlooding;
-                document.getElementById('btn-flood').style.background = isFlooding ? '#FF3131' : '#4A1115';
-                document.getElementById('btn-flood').style.color = isFlooding ? '#0F1115' : '#FF3131';
-            });
+            document.getElementById('btn-xray').addEventListener('click', () => { xRayMode = !xRayMode; if (xRayMode) safetyMode = false; });
+            document.getElementById('btn-safety').addEventListener('click', () => { safetyMode = !safetyMode; if (safetyMode) xRayMode = false; });
+            document.getElementById('btn-launch').addEventListener('click', launchSimulation);
             document.getElementById('btn-reset').addEventListener('click', resetSimulation);
+            updateTimelineMarker(); updateUIState();
         }
 
-        async function fetchAIPrediction() {
-            let elevationMap = [];
-            for(let i=0; i<256; i++) {
-                elevationMap[i] = [];
-                for(let j=0; j<256; j++) {
-                    elevationMap[i][j] = buildings[Math.floor(i / 8)][Math.floor(j / 8)];
-                }
+        function updateTimelineMarker() {
+            const marker = document.getElementById('user-marker');
+            marker.style.left = (waveHeight / 50) * 100 + '%';
+        }
+
+        function updateUIState() {
+            const bS = document.getElementById('badge-status'), bA = document.getElementById('badge-analysis'), sG = document.getElementById('sliders-group'), tD = document.getElementById('timer-display'), sP = document.getElementById('summary-panel'), rP = document.getElementById('panel-report');
+            if (currentState === STATES.CONFIGURING) {
+                bS.className = 'status-badge status-configuring'; bS.innerText = '1. CONFIGURE';
+                bA.style.opacity = '0.5'; bA.className = 'status-badge status-configuring';
+                sG.classList.remove('disabled'); tD.style.opacity = '0'; sP.style.opacity = '0.5';
+            } else if (currentState === STATES.ANALYZING) {
+                bS.className = 'status-badge status-reporting'; bS.innerText = '1. CONFIGURED';
+                bA.style.opacity = '1'; bA.className = 'status-badge status-analyzing'; bA.innerText = '2. ANALYZING';
+                sG.classList.add('disabled'); tD.style.opacity = '1'; sP.style.opacity = '0.5';
+            } else if (currentState === STATES.REPORTING) {
+                bS.className = 'status-badge status-reporting'; bA.className = 'status-badge status-reporting'; bA.innerText = '2. ANALYZED';
+                tD.style.opacity = '0'; sP.style.opacity = '1';
+                calculateFinalRating();
             }
-            try {
-                const response = await fetch('http://127.0.0.1:8000/predict', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ elevation_map: elevationMap, rainfall_intensity: rainIntensity * (isFlooding ? 20.0 : 1.0) })
-                });
-                if (!response.ok) return;
-                const buffer = await response.arrayBuffer();
-                const floatArray = new Float32Array(buffer);
-                for (let i = 0; i < GRID_SIZE; i++) {
-                    for (let j = 0; j < GRID_SIZE; j++) {
-                        let i8 = i * 8 + 4; let j8 = j * 8 + 4;
-                        targetWater[i][j] = floatArray[(0 * 256 * 256) + (i8 * 256) + j8] * 5.0;
-                        velU[i][j] = floatArray[(1 * 256 * 256) + (i8 * 256) + j8];
-                        velV[i][j] = floatArray[(2 * 256 * 256) + (i8 * 256) + j8];
-                    }
-                }
-            } catch (err) { console.error("AI Sync Error"); }
+        }
+
+        function launchSimulation() {
+            if (currentState === STATES.REPORTING) { resetSimulation(); return; }
+            if (currentState !== STATES.CONFIGURING) return;
+            currentState = STATES.ANALYZING; isSimulating = true;
+            totalSimulationFrames = 600; timerFrames = totalSimulationFrames;
+            peakHydroMomentum = 0; peakKE = 0; heavyStrikes = 0;
+            document.getElementById('btn-launch').innerText = "SIMULATING..."; document.getElementById('btn-launch').classList.remove('btn-flood');
+            document.getElementById('summary-h').innerText = waveHeight.toFixed(1) + "m"; document.getElementById('summary-v').innerText = waveVelocity.toFixed(1) + "m/s"; document.getElementById('summary-t').innerText = surgeDuration.toFixed(1) + " hrs";
+            updateUIState();
         }
 
         function resetSimulation() {
-            for (let i = 0; i < GRID_SIZE; i++) {
-                for (let j = 0; j < GRID_SIZE; j++) {
-                    waterLevels[i][j] = 0;
-                    targetWater[i][j] = 0;
-                    velU[i][j] = 0;
-                    velV[i][j] = 0;
-                }
-            }
-            isFlooding = false;
-            document.getElementById('btn-flood').style.background = '#4A1115';
-            document.getElementById('btn-flood').style.color = '#FF3131';
-            safetyMode = false;
-            document.getElementById('btn-safety').style.background = '#262B35';
-            document.getElementById('btn-safety').style.color = '#FFD700';
-            xRayMode = false;
-            document.getElementById('btn-xray').style.background = '#262B35';
-            document.getElementById('btn-xray').style.color = '#00FF66';
-        }
-
-        function spawnDefense(type) {
-            for(let i=0; i<12; i++) { for(let j=0; j<GRID_SIZE; j++) { buildings[i][j] = 0; } }
-            if (type === 'clear') return; 
-            
-            if (type === 'levee') { for(let j=0; j<GRID_SIZE; j++) { if (j < 12 || j > 20) buildings[1][j] = 15; } }
-            else if (type === 'breaker') { for(let i=1; i<8; i++) { buildings[i][16-i] = 12; buildings[i][16+i] = 12; } }
-            else if (type === 'channel') { for(let i=1; i<10; i++) { buildings[i][12] = 15; buildings[i][20] = 15; } }
-            else if (type === 'friction') { for(let i=1; i<6; i+=2) { for(let j=0; j<GRID_SIZE; j+=3) { buildings[i][j] = 8; buildings[i+1][j+1] = 8; } } }
+            currentState = STATES.CONFIGURING; isSimulating = false; timerFrames = 0;
+            peakHydroMomentum = 0; peakKE = 0; heavyStrikes = 0;
+            for (let i = 0; i < GRID_HEIGHT; i++) for (let j = 0; j < GRID_WIDTH; j++) { waterLevels[i][j] = 0; targetWater[i][j] = 0; velU[i][j] = 0; velV[i][j] = 0; debrisHits[i][j] = 0; buildingHealth[i][j] = 100; }
+            document.getElementById('btn-launch').innerText = "LAUNCH SIMULATION"; document.getElementById('btn-launch').classList.add('btn-flood');
+            document.getElementById('stat-sh').innerText = "0.00"; document.getElementById('stat-sp').innerText = "0.00"; document.getElementById('stat-se').innerText = "0.00"; document.getElementById('stat-sd').innerText = "0.00";
+            document.getElementById('val-hydro-peak').innerText = "0.0"; document.getElementById('val-ke-peak').innerText = "0.0"; document.getElementById('val-heavy-hits').innerText = "0";
+            const ratingEl = document.getElementById('resilience-rating'); if (ratingEl) { ratingEl.innerText = "N/A"; ratingEl.style.color = "var(--success-neon)"; }
+            initializeCityLayout(); updateUIState();
         }
 
         function updateSimulation() {
-            const SURGE_STRENGTH = isFlooding ? surgeIntensity : 0.0;
-            const MOMENTUM = 0.45; const VISCOSITY = 0.12;
+            const STEPS = 8;
+            for (let step = 0; step < STEPS; step++) {
+                if (timerFrames <= 0) { isSimulating = false; currentState = STATES.REPORTING; document.getElementById('btn-launch').innerText = "RESET FOR NEW RUN"; updateUIState(); return; }
+                let progress = 1 - (timerFrames / totalSimulationFrames);
+                let profile = progress < 0.1 ? progress / 0.1 : (progress < 0.4 ? 1.0 : max(0.2, 1.0 - (progress - 0.4) * 0.8));
+                const SURGE = waveHeight * profile * (1 - mitigationEff);
+                for (let i = 0; i < GRID_HEIGHT; i++) targetWater[i][0] = max(targetWater[i][0], SURGE);
+                for (let i = 0; i < GRID_HEIGHT; i++) nextWaterBuffer[i].set(targetWater[i]);
+                for (let i = 0; i < GRID_HEIGHT; i++) {
+                    for (let j = 0; j < GRID_WIDTH; j++) {
+                        let w = targetWater[i][j]; if (w < 0.01) continue;
+                        nextWaterBuffer[i][j] -= (buildings[i][j] === 0 ? 0.005 : 0.001);
+                        
+                        // Apply Drainage Efficiency (Constant removal)
+                        nextWaterBuffer[i][j] -= (drainageEff * 0.05); 
+                        if (nextWaterBuffer[i][j] < 0) nextWaterBuffer[i][j] = 0;
 
-            for (let j = 0; j < GRID_SIZE; j++) { targetWater[0][j] += SURGE_STRENGTH; }
-
-            let nextWater = [];
-            for (let i = 0; i < GRID_SIZE; i++) nextWater[i] = [...targetWater[i]];
-
-            for (let i = 0; i < GRID_SIZE; i++) {
-                for (let j = 0; j < GRID_SIZE; j++) {
-                    let myWater = targetWater[i][j];
-                    if (myWater < 0.01) continue;
-                    let localDrain = (buildings[i][j] === 0) ? drainageRate * 0.1 : drainageRate * 0.01;
-                    nextWater[i][j] -= localDrain;
-                    let myTotal = myWater + buildings[i][j];
-                    let neighbors = [{di:1, dj:0, w:1.5}, {di:0, dj:1, w:0.8}, {di:0, dj:-1, w:0.8}, {di:-1, dj:0, w:0.3}];
-                    for (let n of neighbors) {
-                        let ni = i + n.di; let nj = j + n.dj;
-                        if (ni >= 0 && ni < GRID_SIZE && nj >= 0 && nj < GRID_SIZE) {
-                            let theirTotal = targetWater[ni][nj] + buildings[ni][nj];
-                            if (myTotal > theirTotal) {
-                                if (buildings[ni][nj] > 0 && myTotal < buildings[ni][nj]) continue;
-                                let flowAmt = (myTotal - theirTotal) * VISCOSITY * n.w;
-                                flowAmt = min(flowAmt, myWater * 0.4);
-                                nextWater[i][j] -= flowAmt; nextWater[ni][nj] += flowAmt;
-                                myWater -= flowAmt; myTotal -= flowAmt;
+                        let tot = w + buildings[i][j], neighbors = [{di:1, dj:0, w:0.4}, {di:-1, dj:0, w:0.4}, {di:0, dj:1, w:1.8}, {di:0, dj:-1, w:0.1}];
+                        for (let n of neighbors) {
+                            let ni = i + n.di, nj = j + n.dj;
+                            if (ni >= 0 && ni < GRID_HEIGHT && nj >= 0 && nj < GRID_WIDTH) {
+                                let tT = targetWater[ni][nj] + buildings[ni][nj];
+                                if (tot > tT) { let flow = (tot - tT) * 0.2 * n.w; flow = min(flow, w * 0.6); nextWaterBuffer[i][j] -= flow; nextWaterBuffer[ni][nj] += flow; w -= flow; tot -= flow; }
                             }
+                        }
+                        if (buildings[i][j] > 0 && w > 0.5) {
+                            let hydroMomentum = w * (waveVelocity * waveVelocity);
+                            if (hydroMomentum > peakHydroMomentum) peakHydroMomentum = hydroMomentum;
+                            let yieldThreshold = materials[i][j] === 3 ? 1200 : (materials[i][j] === 2 ? 600 : 250);
+                            let fragility = materials[i][j] === 3 ? 0.00005 : (materials[i][j] === 2 ? 0.0002 : 0.001);
+                            if (hydroMomentum > yieldThreshold) buildingHealth[i][j] -= (hydroMomentum - yieldThreshold) * fragility;
                         }
                     }
                 }
-            }
-            targetWater = nextWater;
-
-            for (let p of particles) {
-                let ix = floor(p.x); let iy = floor(p.y);
-                if (ix >= 0 && ix < GRID_SIZE && iy >= 0 && iy < GRID_SIZE) {
-                    p.x += (MOMENTUM + velU[ix][iy]) * 0.6;
-                    p.y += (velV[ix][iy]) * 0.4 + random(-0.02, 0.02);
+                for (let p of particles) {
+                    let ix = floor(p.x), iy = floor(p.y);
+                    if (p.mass === undefined) { let r = random(); p.mass = r < 0.7 ? 5 : (r < 0.95 ? 10 : 20); }
+                    if (ix >= 0 && ix < GRID_WIDTH && iy >= 0 && iy < GRID_HEIGHT) {
+                        p.x += (1.0 + waveVelocity * 0.05); p.y += random(-0.1, 0.1);
+                        if (buildings[iy][ix] > 0 && !p.hasCollided) {
+                            let ek = 0.5 * p.mass * (waveVelocity * waveVelocity);
+                            if (ek > peakKE) peakKE = ek;
+                            if (p.mass === 20) heavyStrikes++;
+                            let yieldThreshold = materials[iy][ix] === 3 ? 1200 : (materials[iy][ix] === 2 ? 600 : 250);
+                            let fragility = materials[iy][ix] === 3 ? 0.005 : (materials[iy][ix] === 2 ? 0.02 : 0.1);
+                            if (ek > yieldThreshold) { buildingHealth[iy][ix] -= (ek - yieldThreshold) * fragility; debrisHits[iy][ix] = 1; p.hasCollided = true; }
+                        }
+                    }
+                    p.life -= 1; if (p.life <= 0 || p.x >= GRID_WIDTH) { p.x = 0; p.y = random(0, GRID_HEIGHT); p.life = random(40, 100); p.mass = undefined; p.hasCollided = false; }
                 }
-                p.life -= 1;
-                if (p.life <= 0 || p.x >= GRID_SIZE) { p.x = 0; p.y = random(0, GRID_SIZE); p.life = random(60, 150); }
+                for (let i = 0; i < GRID_HEIGHT; i++) targetWater[i].set(nextWaterBuffer[i]);
+                timerFrames -= (1 / STEPS);
             }
+            for (let i = 0; i < GRID_HEIGHT; i++) for (let j = 0; j < GRID_WIDTH; j++) waterLevels[i][j] = lerp(waterLevels[i][j], max(0, targetWater[i][j]), 0.2);
+            let progress = 1 - (timerFrames / totalSimulationFrames), curSecs = progress * (surgeDuration * 3600);
+            const tD = document.getElementById('timer-display'); if (tD) tD.innerText = `${nf(floor(curSecs/3600),2)}:${nf(floor((curSecs%3600)/60),2)}h`;
+        }
 
-            for (let i = 0; i < GRID_SIZE; i++) {
-                for (let j = 0; j < GRID_SIZE; j++) {
-                    targetWater[i][j] = max(0, targetWater[i][j]);
-                    waterLevels[i][j] = lerp(waterLevels[i][j], targetWater[i][j], 0.1);
+        function calculateMetrics() {
+            let tB = 0, exposedB = 0, dH = 0, tD = 0, resistS = 0, mR = 0;
+            let totalRC = 0, destroyedRC = 0, totalMasonry = 0, destroyedMasonry = 0;
+            for (let i = 0; i < GRID_HEIGHT; i++) {
+                for (let j = 0; j < GRID_WIDTH; j++) {
+                    tD += waterLevels[i][j];
+                    if (buildings[i][j] > 0) {
+                        tB++;
+                        if (waterLevels[i][j] > 1.2) exposedB++;
+                        if (debrisHits[i][j]) dH++;
+                        let mF = materials[i][j] === 3 ? 1.5 : (materials[i][j] === 2 ? 1.0 : 0.5);
+                        resistS += (buildingHealth[i][j] / 100) * mF; mR += mF;
+                        if (materials[i][j] === 3) { totalRC++; if (buildingHealth[i][j] < 10) destroyedRC++; } 
+                        else if (materials[i][j] === 1) { totalMasonry++; if (buildingHealth[i][j] < 10) destroyedMasonry++; }
+                    }
                 }
             }
+            document.getElementById('stat-sh').innerText = (resistS / (mR + 0.1)).toFixed(2);
+            document.getElementById('stat-sp').innerText = (1 - min(1, (tD / (GRID_WIDTH * GRID_HEIGHT * 2.0)))).toFixed(2);
+            document.getElementById('stat-se').innerText = (1 - (exposedB / (tB + 1))).toFixed(2);
+            document.getElementById('stat-sd').innerText = (1 - (dH / (tB + 1))).toFixed(2);
+            document.getElementById('val-hydro-peak').innerText = peakHydroMomentum.toFixed(1);
+            document.getElementById('val-ke-peak').innerText = peakKE.toFixed(1);
+            document.getElementById('val-heavy-hits').innerText = heavyStrikes;
+            document.getElementById('report-rc').innerText = `${destroyedRC} / ${totalRC}`;
+            document.getElementById('report-masonry').innerText = `${destroyedMasonry} / ${totalMasonry}`;
+        }
+
+        function calculateFinalRating() {
+            const sh = parseFloat(document.getElementById('stat-sh').innerText), sp = parseFloat(document.getElementById('stat-sp').innerText), se = parseFloat(document.getElementById('stat-se').innerText), sd = parseFloat(document.getElementById('stat-sd').innerText);
+            const score = (sh + sp + se + sd) / 4; let rating = "POOR", col = "var(--danger-neon)";
+            if (score > 0.85) { rating = "OPTIMAL"; col = "var(--success-neon)"; } else if (score > 0.7) { rating = "GOOD"; col = "#AFFF00"; } else if (score > 0.5) { rating = "ADEQUATE"; col = "#FFD700"; }
+            const el = document.getElementById('resilience-rating'); if (el) { el.innerText = rating; el.style.color = col; }
         }
 
         function draw() {
             background('#0F1115');
-            if (millis() - lastFetchTime > FETCH_INTERVAL) { fetchAIPrediction(); lastFetchTime = millis(); }
-            updateSimulation();
+            if (currentState === STATES.ANALYZING) { updateSimulation(); calculateMetrics(); }
+            panX = lerp(panX, targetPanX, 0.12); panY = lerp(panY, targetPanY, 0.12); zoomScale = lerp(zoomScale, targetZoom, 0.12);
             push(); translate(panX, panY); scale(zoomScale);
-            for (let sy = 0; sy < GRID_SIZE; sy++) { for (let sx = 0; sx < GRID_SIZE; sx++) { renderTile(sx, sy); } }
-            pop(); 
-            drawParticles();
-            updateStats();
-            updateInspector();
-            drawCompass();
+            let mx = (mouseX - panX) / zoomScale, my = (mouseY - panY) / zoomScale;
+            let A = (2 * mx) / TILE_W, B = (2 * my) / TILE_H + GRID_HEIGHT;
+            hoveredTile = { x: floor((A + B) / 2), y: floor((B - A) / 2) };
+            for (let sy = 0; sy < GRID_HEIGHT; sy++) for (let sx = 0; sx < GRID_WIDTH; sx++) renderTile(sx, sy);
+            if (currentState === STATES.ANALYZING) {
+                let progress = 1 - (timerFrames / totalSimulationFrames);
+                let waveFrontX = floor(progress * GRID_WIDTH * 0.8);
+                if (waveFrontX < GRID_WIDTH) {
+                    stroke('rgba(255,255,255,0.4)'); strokeWeight(2);
+                    let x1 = (waveFrontX - 0) * (TILE_W/2), y1 = (waveFrontX + 0 - GRID_HEIGHT) * (TILE_H/2);
+                    let x2 = (waveFrontX - GRID_HEIGHT) * (TILE_W/2), y2 = (waveFrontX + GRID_HEIGHT - GRID_HEIGHT) * (TILE_H/2);
+                    line(x1, y1, x2, y2);
+                }
+            }
+            pop();
+            if (currentState === STATES.ANALYZING || currentState === STATES.REPORTING) drawParticles();
+            updateInspectorUI();
+        }
+
+        function updateInspectorUI() {
+            const ins = document.getElementById('data-inspector'); if (!ins) return;
+            let dx, dy;
+            if (currentRotation === 0) { dx = hoveredTile.y; dy = hoveredTile.x; } else if (currentRotation === 1) { dx = hoveredTile.x; dy = GRID_WIDTH - 1 - hoveredTile.y; } else if (currentRotation === 2) { dx = GRID_HEIGHT - 1 - hoveredTile.y; dy = GRID_WIDTH - 1 - hoveredTile.x; } else { dx = GRID_HEIGHT - 1 - hoveredTile.x; dy = hoveredTile.y; }
+            if (dx >= 0 && dx < GRID_HEIGHT && dy >= 0 && dy < GRID_WIDTH) {
+                ins.style.display = 'block';
+                let mat = materials[dx][dy] === 3 ? "CONCRETE" : (materials[dx][dy] === 2 ? "MASONRY" : (materials[dx][dy] === 1 ? "WOOD" : "GROUND"));
+                ins.innerHTML = `<div style="color:var(--accent-neon);font-weight:700;margin-bottom:4px;">TILE_DATA [${dx},${dy}]</div>Elev: ${buildings[dx][dy]}m<br>Mat: ${mat}<br>Water: ${waterLevels[dx][dy].toFixed(2)}m<br>Health: ${buildingHealth[dx][dy].toFixed(1)}%`;
+            } else { ins.style.display = 'none'; }
         }
 
         function drawParticles() {
             push(); translate(panX, panY); scale(zoomScale); noStroke();
             for (let p of particles) {
-                let ix = floor(constrain(p.x, 0, GRID_SIZE-1)); let iy = floor(constrain(p.y, 0, GRID_SIZE-1));
-                let depth = waterLevels[ix][iy];
-                if (depth > 0.1) {
-                    fill(255, 255, 255, map(p.life, 0, 150, 0, 200));
-                    let isoX = (p.x - p.y) * (TILE_W / 2); let isoY = (p.x + p.y - GRID_SIZE) * (TILE_H / 2);
-                    ellipse(isoX, isoY - (depth * HEIGHT_SCALE), 3, 2);
-                }
+                let ix = floor(constrain(p.x, 0, GRID_WIDTH-1)), iy = floor(constrain(p.y, 0, GRID_HEIGHT-1)), depth = waterLevels[iy][ix];
+                if (depth > 0.1) { fill(0, 243, 255, map(p.life, 0, 100, 0, 255)); let isoX = (p.x - p.y) * (TILE_W / 2), isoY = (p.x + p.y - GRID_HEIGHT) * (TILE_H / 2); ellipse(isoX, isoY - (depth * HEIGHT_SCALE), 5, 3); }
             }
             pop();
         }
 
         function renderTile(sx, sy) {
             let dx, dy;
-            if (currentRotation === 0) { dx = sx; dy = sy; }
-            else if (currentRotation === 1) { dx = sy; dy = GRID_SIZE - 1 - sx; }
-            else if (currentRotation === 2) { dx = GRID_SIZE - 1 - sx; dy = GRID_SIZE - 1 - sy; }
-            else { dx = GRID_SIZE - 1 - sy; dy = sx; }
+            if (currentRotation === 0) { dx = sy; dy = sx; } else if (currentRotation === 1) { dx = sx; dy = GRID_WIDTH - 1 - sy; } else if (currentRotation === 2) { dx = GRID_HEIGHT - 1 - sy; dy = GRID_WIDTH - 1 - sx; } else { dx = GRID_HEIGHT - 1 - sx; dy = sy; }
+            if (dx < 0 || dx >= GRID_HEIGHT || dy < 0 || dy >= GRID_WIDTH) return;
+            let isoX = (sx - sy) * (TILE_W / 2), isoY = (sx + sy - GRID_HEIGHT) * (TILE_H / 2), bH = buildings[dx][dy], wD = waterLevels[dx][dy], health = buildingHealth[dx][dy];
+            let bCol = '#3C4048', bSideL = '#2A2E37', bSideR = '#1A1E24', gCol = '#1A1D23', gSideL = '#12151A', gSideR = '#0D0F13';
+            if (bH > 0) {
+                if (safetyMode) {
+                    let subRatio = wD / bH;
+                    if (health < 40 || debrisHits[dx][dy] === 1 || wD > 2.5 || subRatio > 0.4) { // Highly Unsafe
+                        bCol = '#FF3131'; bSideL = '#8B0000'; bSideR = '#660000';
+                    } else if (health < 75 || wD > 0.8 || subRatio > 0.1) { // Moderate Risk
+                        bCol = '#FFD700'; bSideL = '#8B8000'; bSideR = '#665C00';
+                    } else { // Safe
+                        bCol = '#00FF41'; bSideL = '#006400'; bSideR = '#004200';
+                    }
+                } else {
+                    let m = materials[dx][dy], r, g, b;
+                    if (m === 1) { r = 139; g = 100; b = 60; } else if (m === 2) { r = 120; g = 128; b = 144; } else { r = 180; g = 200; b = 220; } 
+                    
+                    // Apply "Edge of Failure" Warning (Amber/Yellow tint between 15% and 50% health)
+                    if (health < 50 && health > 15) {
+                        let warnFactor = map(health, 15, 50, 1, 0);
+                        r = lerp(r, 255, warnFactor); g = lerp(g, 180, warnFactor); b = lerp(b, 0, warnFactor);
+                    }
 
-            let isoX = (sx - sy) * (TILE_W / 2);
-            let isoY = (sx + sy - GRID_SIZE) * (TILE_H / 2);
-
-            let bHeight = buildings[dx][dy];
-            let wDepth = waterLevels[dx][dy];
-
-            let bColor = '#3C4048'; let bSide = '#2A2E37';
-            let gColor = '#111318'; let gSide = '#090A0C';
-
-            if (dx === Math.floor(GRID_SIZE / 2) || dx === Math.floor(GRID_SIZE / 2) + 1) { gColor = '#1A1C22'; gSide = '#101216'; }
-
-            if (bHeight > 0) {
-                if (bHeight <= 2) { bColor = '#3C4048'; bSide = '#2A2E37'; } 
-                else if (bHeight <= 7) { bColor = '#4E6E81'; bSide = '#364B58'; } 
-                else if (bHeight <= 12) { bColor = '#829399'; bSide = '#59656A'; } 
-                else { bColor = '#B0C4DE'; bSide = '#7E8DA0'; } 
+                    // Apply Health Wear (General darkening)
+                    r = lerp(40, r, health / 100); g = lerp(40, g, health / 100); b = lerp(40, b, health / 100);
+                    
+                    // Apply Strict Submerge Tint (Darken/Blue when under water)
+                    if (wD > 0.1) {
+                        let tintFactor = constrain(wD / (bH * 0.8), 0, 1);
+                        r = lerp(r, 10, tintFactor); g = lerp(g, 30, tintFactor); b = lerp(b, 70, tintFactor);
+                    }
+                    
+                    bCol = `rgb(${floor(r)}, ${floor(g)}, ${floor(b)})`; bSideL = `rgb(${floor(r*0.6)}, ${floor(g*0.6)}, ${floor(b*0.6)})`; bSideR = `rgb(${floor(r*0.4)}, ${floor(g*0.4)}, ${floor(b*0.4)})`;
+                }
             }
-
-            if (safetyMode) {
-                let crit = (wDepth > 1.0) || (bHeight > 0 && wDepth > bHeight * 0.4);
-                let warn = (wDepth > 0.3) || (bHeight > 0 && wDepth > 0.05);
-                if (crit) { bColor = '#FF3131'; bSide = '#8B0000'; gColor = 'rgba(255, 49, 49, 0.1)'; }
-                else if (warn) { bColor = '#FFD700'; bSide = '#8B8000'; gColor = 'rgba(255, 215, 0, 0.1)'; }
-                else { bColor = '#00FF41'; bSide = '#006400'; gColor = 'rgba(0, 255, 65, 0.1)'; }
+            if (xRayMode && bH > 0) { bCol = 'rgba(0, 243, 255, 0.15)'; bSideL = 'rgba(0, 243, 255, 0.1)'; bSideR = 'rgba(0, 243, 255, 0.05)'; }
+            if (sx === hoveredTile.x && sy === hoveredTile.y) { stroke(varToHex('--accent-neon')); strokeWeight(1); } else { noStroke(); }
+            drawCube(isoX, isoY, 0.2, gCol, gSideL, gSideR); 
+            if (dy === 5 && selectedDefense !== 'none') {
+                let brCol, brL, brR, brH;
+                if (selectedDefense === 'seawall') { brCol = '#808080'; brL = '#606060'; brR = '#404040'; brH = 5; }
+                else if (selectedDefense === 'tetrapod') { brCol = '#A0A0A0'; brL = '#808080'; brR = '#606060'; brH = 1.5; }
+                else if (selectedDefense === 'mangrove') { brCol = '#228B22'; brL = '#1E5D1E'; brR = '#144114'; brH = 2.5; }
+                drawCube(isoX, isoY, brH, brCol, brL, brR);
             }
-
-            drawCube(isoX, isoY, 0.2, gColor, gSide); 
-            if (bHeight > 0) {
-                if (xRayMode && !safetyMode) drawCube(isoX, isoY, bHeight, 'rgba(60, 64, 72, 0.1)', 'rgba(42, 46, 55, 0.05)', false, true);
-                else drawCube(isoX, isoY, bHeight, bColor, bSide, false, true);
-            }
-
-            if (wDepth > 0.01) {
-                let wc = 'rgba(0, 191, 255, 0.45)';
-                if (wDepth > 4.0) wc = 'rgba(0, 20, 100, 0.85)';
-                else if (wDepth > 1.5) wc = 'rgba(0, 60, 200, 0.65)';
-                drawCube(isoX, isoY, wDepth, wc, wc, true);
-            }
+            if (bH > 0) drawCube(isoX, isoY, bH, bCol, bSideL, bSideR, true);
+            if (wD > 0.05) { let wcL = 'rgba(0, 210, 255, 0.65)', wcR = 'rgba(0, 160, 255, 0.75)'; if (wD > 8.0) { wcL = 'rgba(0, 80, 200, 0.85)'; wcR = 'rgba(0, 50, 150, 0.95)'; } drawCube(isoX, isoY, wD, wcL, wcL, wcR, false); }
+            if (debrisHits[dx][dy] && wD > 0.1) { fill(varToHex('--danger-neon')); noStroke(); ellipse(isoX, isoY - (wD * HEIGHT_SCALE), 6, 6); }
         }
 
-        function drawCube(sx, sy, h, colorTop, colorSide, isFluid = false, isBuilding = false) {
+        function drawCube(sx, sy, h, colT, colL, colR, isB = false) {
             let hz = h * HEIGHT_SCALE;
-            fill(colorSide); noStroke();
-            beginShape(); vertex(sx, sy); vertex(sx - TILE_W / 2, sy + TILE_H / 2); vertex(sx - TILE_W / 2, sy + TILE_H / 2 - hz); vertex(sx, sy - hz); endShape(CLOSE);
-            beginShape(); vertex(sx, sy); vertex(sx + TILE_W / 2, sy + TILE_H / 2); vertex(sx + TILE_W / 2, sy + TILE_H / 2 - hz); vertex(sx, sy - hz); endShape(CLOSE);
-            fill(colorTop); 
-            if (isBuilding) { stroke('#00FF41'); strokeWeight(1); }
-            else { noStroke(); }
-            beginShape(); vertex(sx, sy - hz); vertex(sx + TILE_W / 2, sy - TILE_H / 2 - hz); vertex(sx, sy - TILE_H - hz); vertex(sx - TILE_W / 2, sy - TILE_H / 2 - hz); endShape(CLOSE);
+            fill(colL); beginShape(); vertex(sx, sy); vertex(sx - TILE_W/2, sy + TILE_H/2); vertex(sx - TILE_W/2, sy + TILE_H/2 - hz); vertex(sx, sy - hz); endShape(CLOSE);
+            fill(colR); beginShape(); vertex(sx, sy); vertex(sx + TILE_W/2, sy + TILE_H/2); vertex(sx + TILE_W/2, sy + TILE_H/2 - hz); vertex(sx, sy - hz); endShape(CLOSE);
+            fill(colT); if (isB) { stroke('rgba(255,255,255,0.1)'); strokeWeight(0.3); } 
+            beginShape(); vertex(sx, sy - hz); vertex(sx + TILE_W/2, sy - TILE_H/2 - hz); vertex(sx, sy - TILE_H - hz); vertex(sx - TILE_W / 2, sy - TILE_H / 2 - hz); endShape(CLOSE);
         }
-
-        function updateInspector() {
-            let mx = (mouseX - panX) / zoomScale; let my = (mouseY - panY) / zoomScale;
-            let isoX = mx / (TILE_W / 2); let isoY = my / (TILE_H / 2);
-            let cx = (isoY + isoX) / 2; let cy = (isoY - isoX) / 2;
-            let sx = floor(cx + GRID_SIZE/2); let sy = floor(cy + GRID_SIZE/2);
-            let inspector = document.getElementById('data-inspector');
-            if (sx >= 0 && sx < GRID_SIZE && sy >= 0 && sy < GRID_SIZE) {
-                let dx = sx, dy = sy;
-                inspector.style.display = 'block'; inspector.style.left = (mouseX + 15) + 'px'; inspector.style.top = (mouseY + 15) + 'px';
-                inspector.innerHTML = `DEPTH: ${waterLevels[dx][dy].toFixed(2)}m<br>ELEV: ${buildings[dx][dy].toFixed(1)}m`;
-            } else { inspector.style.display = 'none'; }
-        }
-
-        function updateStats() {
-            let td = 0; for (let i = 0; i < GRID_SIZE; i++) { for (let j = 0; j < GRID_SIZE; j++) td += waterLevels[i][j]; }
-            let avg = td / (GRID_SIZE * GRID_SIZE);
-            document.getElementById('stat-depth').innerText = avg.toFixed(2) + "m";
-            let r = "STABLE"; if (avg > 1.2) r = "CRITICAL"; else if (avg > 0.4) r = "WARNING";
-            document.getElementById('stat-risk').innerText = r;
-        }
-
-        function drawCompass() {}
+        function varToHex(v) { let s = getComputedStyle(document.documentElement).getPropertyValue(v); return s ? s.trim() : "#00F3FF"; }
+        function handleZoom(ev) { if (ev.deltaY < 0) targetZoom *= 1.1; else targetZoom *= 0.9; targetZoom = constrain(targetZoom, 0.2, 4.0); return false; }
         function mousePressed() { if (mouseX > 320) isDragging = true; }
         function mouseReleased() { isDragging = false; }
-        function mouseDragged() { if (isDragging) { panX += mouseX - pmouseX; panY += mouseY - pmouseY; } }
-        function handleZoom(ev) { if (ev.deltaY < 0) zoomScale *= 1.05; else zoomScale *= 0.95; zoomScale = constrain(zoomScale, 0.2, 4.0); return false; }
-        function windowResized() { resizeCanvas(document.getElementById('canvas-container').clientWidth, document.getElementById('canvas-container').clientHeight); }
+        function mouseDragged() { if (isDragging) { targetPanX += mouseX - pmouseX; targetPanY += mouseY - pmouseY; } }
+        function windowResized() { let container = document.getElementById('canvas-container'); if (container) resizeCanvas(container.clientWidth, container.clientHeight); }
     </script>
 </body>
 </html>

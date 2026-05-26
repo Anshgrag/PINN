@@ -2,40 +2,58 @@ import numpy as np
 import torch
 from scipy.ndimage import gaussian_filter
 
-def generate_synthetic_city(size=256, num_buildings=40):
+def generate_large_manhattan_grid(width_m=10000, height_m=5000, resolution=20):
     """
-    Generates a physically plausible synthetic city elevation map.
-    - Smooth terrain (slopes)
-    - Buildings (blocks)
-    - A river or drainage channel
+    Generates a large-scale Manhattan grid with elevation and structural materials.
     """
-    # 1. Base Terrain (sloped plane)
-    x = np.linspace(0, 5, size)
-    y = np.linspace(0, 5, size)
-    X, Y = np.meshgrid(x, y)
-    elevation = 0.5 * X + 0.2 * Y # Gentle slope towards top-left
+    cols = int(width_m / resolution)
+    rows = int(height_m / resolution)
     
-    # 2. Add a River/Channel (low elevation)
-    river_mask = (Y > 2.2) & (Y < 2.8)
-    elevation[river_mask] -= 1.5
+    elevation = np.zeros((rows, cols))
+    materials = np.zeros((rows, cols)) # 0: None, 1: Wood, 2: Masonry, 3: Concrete
     
-    # 3. Add Buildings
-    buildings = np.zeros((size, size))
-    for _ in range(num_buildings):
-        bx, by = np.random.randint(20, size-20, 2)
-        bw, bh = np.random.randint(10, 30, 2)
-        b_height = np.random.uniform(5, 15)
-        
-        # Ensure buildings don't sit in the middle of the river for this simple model
-        if not (by > 2.0 * size/5 and by < 3.0 * size/5):
-            buildings[bx:bx+bw, by:by+bh] = b_height
+    street_width = 18
+    avenue_width = 30
+    block_width = 270 
+    block_height = 80  
+    
+    sw_g = max(1, int(street_width / resolution))
+    aw_g = max(1, int(avenue_width / resolution))
+    bw_g = max(1, int(block_width / resolution))
+    bh_g = max(1, int(block_height / resolution))
+    
+    x = np.linspace(0, 1, cols)
+    X, Y = np.meshgrid(x, np.linspace(0, 1, rows))
+    elevation = 2.0 * (1.0 - np.abs(2 * X - 1)) 
+    
+    river_width_g = int(500 / resolution)
+    elevation[:, :river_width_g] = -5.0
+    elevation[:, -river_width_g:] = -5.0
+    
+    start_g = river_width_g + 2
+    end_g = cols - river_width_g - 2
+    
+    for i in range(rows):
+        for j in range(start_g, end_g):
+            is_avenue = (j % (bw_g + aw_g)) < aw_g
+            is_street = (i % (bh_g + sw_g)) < sw_g
             
-    # 4. Final Map
-    final_map = elevation + buildings
-    # Apply slight smoothing to terrain but keep buildings sharp
-    final_map = gaussian_filter(final_map, sigma=0.5)
+            if not is_avenue and not is_street:
+                # Inside a building block
+                h = 15.0 + np.random.uniform(0, 10)
+                elevation[i, j] = h
+                
+                # Assign material based on height (Skyscrapers = Concrete, Small = Wood)
+                if h > 22: materials[i, j] = 3 # Concrete
+                elif h > 17: materials[i, j] = 2 # Masonry
+                else: materials[i, j] = 1 # Wood
+                
+    elevation = gaussian_filter(elevation, sigma=0.5)
     
-    return final_map
+    return elevation, materials
+
+def generate_synthetic_city(size=None, num_buildings=None):
+    return generate_large_manhattan_grid(10000, 5000, 20)
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
