@@ -27,9 +27,13 @@ def test_physics_loss_computation():
 def test_api_predict_optimized():
     # Mock elevation map 256x256
     elevation_map = np.random.rand(256, 256).tolist()
+    material_map = np.random.randint(0, 4, size=(256, 256)).tolist()
     payload = {
         "elevation_map": elevation_map,
-        "rainfall_intensity": 5.0
+        "material_map": material_map,
+        "wave_height": 5.0,
+        "wave_duration": 2.0,
+        "debris_density": 0.5
     }
     
     # Warmup
