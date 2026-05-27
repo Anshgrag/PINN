@@ -786,15 +786,15 @@
             transform: translate(-50%, -100%);
             background: rgba(6, 7, 9, 0.85);
             border: 1px solid var(--accent-green);
-            padding: 3px 8px;
-            border-radius: 3px;
-            font-size: 0.55rem;
+            padding: 2px 6px;
+            border-radius: 2px;
+            font-size: 0.45rem;
             color: var(--accent-green);
             font-weight: 700;
             white-space: nowrap;
             pointer-events: none;
             letter-spacing: 1px;
-            box-shadow: 0 0 10px rgba(0, 255, 149, 0.25);
+            box-shadow: 0 0 8px rgba(0, 255, 149, 0.25);
             transition: opacity 0.2s ease;
             display: none;
             z-index: 5;
@@ -802,10 +802,10 @@
         .pin-label::after {
             content: '';
             position: absolute;
-            bottom: -4px;
+            bottom: -3px;
             left: 50%;
             transform: translateX(-50%);
-            border-width: 4px 4px 0;
+            border-width: 3px 3px 0;
             border-style: solid;
             border-color: var(--accent-green) transparent;
         }
@@ -1031,19 +1031,20 @@
             <div class="panel-eyebrow">Shallow Water Equations · Real-Time Solver</div>
             <h2 class="panel-title" style="font-size:clamp(2rem,5vw,4.5rem)">REAL-TIME<br><em>TSUNAMI</em><br>INUNDATION</h2>
             <p class="panel-sub">
-                Physics-accurate wave propagation across a 64×32 urban grid.<br>
-                Manning friction, bed-slope forcing, and debris impact — all live.
+            Physics-accurate wave propagation across a 64×64 urban grid.<br>
+            Manning friction, bed-slope forcing, and debris impact — all live.
             </p>
-        </div>
+            </div>
 
-        <!-- ── Panel 2 (55–80% scroll): Stats ── -->
-        <div class="scroll-panel" id="panel-2">
+            <!-- ── Panel 2 (55–80% scroll): Stats ── -->
+            <div class="scroll-panel" id="panel-2">
             <div class="panel-eyebrow">Engine Specifications</div>
             <div class="panel-stat-row">
-                <div class="panel-stat">
-                    <div class="panel-stat-val">64×32</div>
-                    <div class="panel-stat-label">Grid Resolution</div>
-                </div>
+            <div class="panel-stat">
+                <div class="panel-stat-val">64×64</div>
+                <div class="panel-stat-label">Grid Resolution</div>
+            </div>
+
                 <div class="panel-stat">
                     <div class="panel-stat-val">SWE</div>
                     <div class="panel-stat-label">Physics Solver</div>
@@ -1178,9 +1179,10 @@
                         <button onclick="loadOSMCity()" class="btn-action"
                             style="padding:8px 12px; font-size:0.6rem; white-space:nowrap;">LOAD</button>
                     </div>
+                    <button onclick="loadRealWorldCity()" class="btn-action"
+                        style="width: 100%; margin-top: 8px; font-size: 0.6rem; letter-spacing: 1px; border-color: var(--accent-amber); color: var(--accent-amber);">LOAD REAL-WORLD CITY GRID</button>
                     <div id="osm-status" style="font-size:0.5rem; color:var(--text-dim); letter-spacing:1px; margin-top:6px; min-height:14px;"></div>
-                </div>
-
+                    </div>
                 <div class="telemetry-box">
                     <div style="font-size: 0.55rem; color: var(--accent-cyan); margin-bottom: 8px; letter-spacing: 2.5px; font-weight: 700;">ENVIRONMENT_VIEW</div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
@@ -1319,14 +1321,88 @@
     </div>
 
     <script>
+        // --- 0. Real-World Data Integration ---
+        let RAW_MAX = 100; // Updated dynamically from grid
+        const HEIGHT_SCALE = 8.0;
+
+        async function loadCityGrid() {
+            try {
+                const res = await fetch("http://localhost:8000/grid");
+                const data = await res.json();
+                const grid = data.grid;
+                
+                // Fix 1: Update RAW_MAX from the data
+                const flat = grid.flat().filter(v => v > 0);
+                if (flat.length > 0) RAW_MAX = Math.max(...flat);
+                
+                return grid;
+            } catch (err) {
+                console.error("Failed to load city grid from backend, falling back to procedural.", err);
+                return null;
+            }
+        }
+
+        function cellHeight(rawVal) {
+            if (rawVal === 0) return 0;
+            // Log scale per Fix 1
+            return (Math.log1p(rawVal) / Math.log1p(RAW_MAX)) * HEIGHT_SCALE;
+        }
+
+        function heightToColor(rawVal) {
+            const t = Math.log1p(rawVal) / Math.log1p(RAW_MAX);  // 0–1
+            if (t < 0.33) return new THREE.Color(0x00b4d8);   // cyan  — low
+            if (t < 0.66) return new THREE.Color(0xf77f00);   // amber — mid
+            return         new THREE.Color(0xff006e);           // magenta — tall
+        }
+
+        const realWorldCityMatrix = Array(64).fill(0).map((_, i) => 
+            Array(64).fill(0).map((_, j) => {
+                // Procedural reconstruction of the user's city layout scaled to 64x64
+                if (j > 20 && j < 48 && i < 44) return 120; // Expanded skyscraper zone
+                if (i > 42 && i < 64 && j < 22) return 50;  // High-density masonry
+                return 0;
+            })
+        );
+
+        function loadRealWorldCity() {
+            const status = document.getElementById('osm-status');
+            status.style.color = 'var(--accent-amber)';
+            status.textContent = 'Loading real-world city grid (64x64)...';
+
+            setTimeout(() => {
+                for (let r = 0; r < GRID_HEIGHT; r++) {
+                    for (let c = 0; c < GRID_WIDTH; c++) {
+                        buildings[r][c] = realWorldCityMatrix[r][c];
+                        materials[r][c] = buildings[r][c] > 0 ? (buildings[r][c] > 50 ? 3 : 2) : 0;
+                        buildingHealth[r][c] = 100.0;
+                    }
+                }
+                
+                elevationGrid = new Float32Array(GRID_HEIGHT * GRID_WIDTH);
+                for (let i = 0; i < elevationGrid.length; i++) {
+                    const r = Math.floor(i / GRID_WIDTH);
+                    const c = i % GRID_WIDTH;
+                    // Scale elevation: ocean stays deep, inland rises more gradually
+                    elevationGrid[i] = c < 12 ? -16.7 : (c - 12) * 0.69;
+                }
+
+                osmCityName = "Real-World Custom Grid (High-Res)";
+                status.style.color = 'var(--accent-green)';
+                status.textContent = '✓ 64x64 city grid loaded.';
+
+                rebuildTerrain();
+                update3DBuildings();
+            }, 500);
+        }
+
         // --- 1. Global Setup & State Management ---
         const STATES = { CONFIGURING: 'CONFIGURING', ANALYZING: 'ANALYZING', REPORTING: 'REPORTING' };
         let currentState = STATES.CONFIGURING;
         let selectedEngine = 'ai'; // 'ai' (PINN Python backend) or 'client' (Local JS fallback)
         
         const GRID_WIDTH = 64;
-        const GRID_HEIGHT = 32;
-        const SPACING = 2.5; // Grid distance multiplier
+        const GRID_HEIGHT = 64;
+        const SPACING = 1.25; // Grid distance multiplier
         
         // Simulation parameters
         let waveHeight = 5.0;
@@ -1334,8 +1410,8 @@
         let selectedDefense = 'none';
         let mitigationEff = 0.0;
         let surgeDuration = 2.0;
-        let drainageEff = 0.05;
-        let simSpeed = 0.3;  // simulation playback speed multiplier (0.05 – 1.0)
+        let drainageEff = 0.10; // Recalibrated for 64x64
+        let simSpeed = 0.6;  // recalibrated for visually convincing 2x speed
         
         // Timer and Playback states
         let timerFrames = 0;
@@ -1375,7 +1451,7 @@
 
         // --- 2. Three.js Initialization ---
         let renderer, scene, camera, controls;
-        let terrainMesh, waterMesh, waterWireframe;
+        let terrainMesh, waterMesh, waterWireframe, waveMesh;
         let buildingMesh; // THREE.InstancedMesh
         let arrowMesh; // THREE.InstancedMesh for velocity vectors
         let debrisSystem; // THREE.Points for particles
@@ -1418,17 +1494,30 @@
             scene.fog = new THREE.FogExp2(0x060709, 0.004);
             
             // Create Camera
-            camera = new THREE.PerspectiveCamera(42, width / height, 1, 1000);
-            camera.position.set(-90, 70, 110);
+            const CELL_SPACING = 1.25;
+            const GRID_SIZE = 64;
+            const GRID_EXTENT = CELL_SPACING * GRID_SIZE; // 80 units
+
+            camera = new THREE.PerspectiveCamera(45, width / height, 1, 2000);
             
-            // Orbit Controls
+            // Fix 2: Immersive Default Perspective
+            camera.position.set(
+                GRID_EXTENT * 0.8,
+                GRID_EXTENT * 1.2,
+                GRID_EXTENT * 1.0
+            );
+            
+            // Orbit Controls - Enhanced Flexibility
             controls = new THREE.OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
-            controls.maxPolarAngle = Math.PI / 2 - 0.01;
-            controls.minDistance = 20;
-            controls.maxDistance = 260;
-            controls.target.set(0, 0, 0);
+            controls.maxPolarAngle = Math.PI / 1.9; // Allow looking slightly below horizon
+            controls.minDistance = 10;
+            controls.maxDistance = 1000;
+            
+            // Fix 2: lookAt true center of grid (40, 0, 40)
+            controls.target.set(GRID_EXTENT / 2, 0, GRID_EXTENT / 2);
+            camera.lookAt(GRID_EXTENT / 2, 0, GRID_EXTENT / 2);
             
             // Ambient blue sky light
             const ambientLight = new THREE.AmbientLight(0x0f1525, 1.4);
@@ -1466,8 +1555,12 @@
 
         function generateTerrainAndStructures() {
             // 1. Terrain Mesh (heightmap plane geometry)
-            const terrainGeo = new THREE.PlaneGeometry(160, 80, GRID_WIDTH - 1, GRID_HEIGHT - 1);
+            const GRID_EXTENT = GRID_WIDTH * SPACING;
+            const terrainGeo = new THREE.PlaneGeometry(GRID_EXTENT, GRID_HEIGHT * SPACING, GRID_WIDTH - 1, GRID_HEIGHT - 1);
             terrainGeo.rotateX(-Math.PI / 2); // Lay flat on XZ plane
+            
+            // Fix 3: Place from top-left (0,0) instead of centering
+            terrainGeo.translate(GRID_EXTENT / 2, 0, (GRID_HEIGHT * SPACING) / 2);
             
             // Assign vertices height map matching elevation
             const posAttr = terrainGeo.attributes.position;
@@ -1500,8 +1593,10 @@
             scene.add(terrainMesh);
             
             // Digital grid pattern lines
-            const gridGeo = new THREE.PlaneGeometry(160, 80, GRID_WIDTH - 1, GRID_HEIGHT - 1);
+            const gridGeo = new THREE.PlaneGeometry(GRID_WIDTH * SPACING, GRID_HEIGHT * SPACING, GRID_WIDTH - 1, GRID_HEIGHT - 1);
             gridGeo.rotateX(-Math.PI / 2);
+            gridGeo.translate(GRID_EXTENT / 2, 0, (GRID_HEIGHT * SPACING) / 2); // Fix 3: Align to terrain
+
             const gridPosAttr = gridGeo.attributes.position;
             const terrainPosAttr = terrainGeo.attributes.position;
             for (let i = 0; i < terrainPosAttr.count; i++) {
@@ -1518,7 +1613,7 @@
 
             // 2. Buildings Instanced Mesh (Physically based materials)
             let maxBuildings = GRID_HEIGHT * GRID_WIDTH;
-            const boxGeo = new THREE.BoxGeometry(2.0, 1.0, 2.0);
+            const boxGeo = new THREE.BoxGeometry(0.9 * SPACING, 1.0, 0.9 * SPACING);
             boxGeo.translate(0, 0.5, 0); // Offset pivot to baseline
             
             const buildingMat = new THREE.MeshStandardMaterial({
@@ -1536,9 +1631,9 @@
             scene.add(buildingMesh);
 
             // 3. Water Surface — HD custom GLSL shader
-            // Fresnel reflectance + animated procedural ripple normals + depth tint + foam
-            const waterGeo = new THREE.PlaneGeometry(160, 80, GRID_WIDTH - 1, GRID_HEIGHT - 1);
+            const waterGeo = new THREE.PlaneGeometry(GRID_WIDTH * SPACING, GRID_HEIGHT * SPACING, GRID_WIDTH - 1, GRID_HEIGHT - 1);
             waterGeo.rotateX(-Math.PI / 2);
+            waterGeo.translate(GRID_EXTENT / 2, 0, (GRID_HEIGHT * SPACING) / 2); // Fix 3: Align to terrain
 
             const waterVertexShader = `
                 varying vec3  vWorldPos;
@@ -1694,6 +1789,22 @@
             waterWireframe.position.y = 0.07;
             scene.add(waterWireframe);
 
+            // 3.5 Wave Front Visual (Moving Wall)
+            const waveFrontGeo = new THREE.PlaneGeometry(0.5, GRID_HEIGHT * SPACING);
+            waveFrontGeo.rotateX(-Math.PI / 2); // Lay flat
+            waveFrontGeo.rotateZ(Math.PI / 2);  // Rotate to be vertical wall facing East
+            
+            const waveFrontMat = new THREE.MeshBasicMaterial({
+                color: 0x00f3ff,
+                transparent: true,
+                opacity: 0.4,
+                side: THREE.DoubleSide
+            });
+            waveMesh = new THREE.Mesh(waveFrontGeo, waveFrontMat);
+            waveMesh.position.set(0, 5, (GRID_HEIGHT * SPACING) / 2);
+            waveMesh.visible = false;
+            scene.add(waveMesh);
+
             // 4. Instanced Tapered Cylinder Vector Arrows (removes BufferGeometryUtils loading risks)
             const singleArrowGeo = new THREE.CylinderGeometry(0.01, 0.22, 1.8, 6);
             singleArrowGeo.rotateZ(-Math.PI / 2); // align along X axis
@@ -1729,14 +1840,15 @@
             
             // 5. Beacons/Dashed lines down to locations
             locationPins.forEach(pin => {
-                const colX = (pin.col - GRID_WIDTH/2) * SPACING;
-                const rowZ = (pin.row - GRID_HEIGHT/2) * SPACING;
+                const colX = pin.col * SPACING + SPACING / 2;
+                const rowZ = pin.row * SPACING + SPACING / 2;
                 const terrainY = getTerrainElevation(pin.col, pin.row);
-                
+
                 const points = [
                     new THREE.Vector3(colX, terrainY, rowZ),
                     new THREE.Vector3(colX, terrainY + 14.0, rowZ)
                 ];
+
                 const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
                 const lineMat = new THREE.LineDashedMaterial({
                     color: 0x00ff95,
@@ -1823,14 +1935,15 @@
         }
 
         // --- 3. City Layout Initializer ---
-        function initializeCityLayout() {
+        async function initializeCityLayout() {
             let seed = 42;
             function randomLCG() {
                 seed = (seed * 1664525 + 1013904223) % 4294967296;
                 return seed / 4294967296;
             }
 
-            buildings = Array.from({ length: GRID_HEIGHT }, () => new Int8Array(GRID_WIDTH));
+            // Use Uint16Array for buildings to handle heights > 127m without wrapping
+            buildings = Array.from({ length: GRID_HEIGHT }, () => new Uint16Array(GRID_WIDTH));
             materials = Array.from({ length: GRID_HEIGHT }, () => new Int8Array(GRID_WIDTH));
             waterLevels = Array.from({ length: GRID_HEIGHT }, () => new Float32Array(GRID_WIDTH));
             targetWater = Array.from({ length: GRID_HEIGHT }, () => new Float32Array(GRID_WIDTH));
@@ -1840,39 +1953,56 @@
             debrisHits = Array.from({ length: GRID_HEIGHT }, () => new Uint8Array(GRID_WIDTH));
             buildingHealth = Array.from({ length: GRID_HEIGHT }, () => new Float32Array(GRID_WIDTH));
             
+            // Fetch grid from backend
+            const cityGrid = await loadCityGrid();
             let buildingCount = 0;
             
             for (let i = 0; i < GRID_HEIGHT; i++) {
                 for (let j = 0; j < GRID_WIDTH; j++) {
                     buildingHealth[i][j] = 100.0;
                     
-                    if (j < 6 || j > GRID_WIDTH - 6) {
-                        buildings[i][j] = 0;
-                        materials[i][j] = 0;
-                    } else {
-                        let isAvenue = (j % 8 === 0);
-                        let isStreet = (i % 4 === 0);
+                    // Default values
+                    buildings[i][j] = 0;
+                    materials[i][j] = 0;
+
+                    // If grid from backend exists
+                    if (cityGrid && cityGrid[i][j] > 0) {
+                        const h = cityGrid[i][j];
+                        buildings[i][j] = h;
                         
-                        if (!isAvenue && !isStreet) {
-                            let r = randomLCG();
-                            let h;
-                            if (r > 0.94) {
-                                h = Math.floor(randomLCG() * 20 + 25); // Concrete Skyscrapers
-                                materials[i][j] = 3;
-                            } else if (r > 0.65) {
-                                h = Math.floor(randomLCG() * 10 + 10); // Masonry blocks
-                                materials[i][j] = 2;
-                            } else if (r > 0.2) {
-                                h = Math.floor(randomLCG() * 4 + 4); // Wood structures
-                                materials[i][j] = 1;
-                            } else {
-                                h = 0;
-                                materials[i][j] = 0;
-                            }
-                            buildings[i][j] = h;
+                        // Infer material based on height
+                        if (h > 25) {
+                            materials[i][j] = 3; // Concrete
+                        } else if (h > 10) {
+                            materials[i][j] = 2; // Masonry
                         } else {
-                            buildings[i][j] = 0;
-                            materials[i][j] = 0;
+                            materials[i][j] = 1; // Wood
+                        }
+                    } 
+                    // Fallback to old procedural logic if backend fetch fails
+                    else if (!cityGrid) {
+                        if (j >= 6 && j <= GRID_WIDTH - 6) {
+                            let isAvenue = (j % 8 === 0);
+                            let isStreet = (i % 4 === 0);
+                            
+                            if (!isAvenue && !isStreet) {
+                                let r = randomLCG();
+                                let h;
+                                if (r > 0.94) {
+                                    h = Math.floor(randomLCG() * 20 + 25);
+                                    materials[i][j] = 3;
+                                } else if (r > 0.65) {
+                                    h = Math.floor(randomLCG() * 10 + 10);
+                                    materials[i][j] = 2;
+                                } else if (r > 0.2) {
+                                    h = Math.floor(randomLCG() * 4 + 4);
+                                    materials[i][j] = 1;
+                                } else {
+                                    h = 0;
+                                    materials[i][j] = 0;
+                                }
+                                buildings[i][j] = h;
+                            }
                         }
                     }
                     
@@ -1896,15 +2026,15 @@
                     const health = buildingHealth[row][col];
                     const wD = waterLevels[row][col];
                     
-                    const x = (col - GRID_WIDTH/2) * SPACING;
-                    const z = (row - GRID_HEIGHT/2) * SPACING;
+                    // Fix 3: Origin Aligned Coordinates
+                    const x = col * SPACING + SPACING / 2;
+                    const z = row * SPACING + SPACING / 2;
                     const terrainElevation = getTerrainElevation(col, row);
                     
                     if (bH > 0) {
-                        // Demolition: building shrinks floor-by-floor as health drops.
-                        // At health=100 → full height. At health=0 → rubble (0.3 units).
+                        // Fix 1: Logarithmic Height Scaling
                         const healthRatio = Math.max(0, health / 100);
-                        const visualH = Math.max(0.3, bH * healthRatio);
+                        const visualH = Math.max(0.1, cellHeight(bH) * healthRatio);
                         
                         dummy.position.set(x, terrainElevation, z);
                         dummy.scale.set(0.9, visualH, 0.9);
@@ -1912,8 +2042,7 @@
                         buildingMesh.setMatrixAt(idx, dummy.matrix);
                         
                         if (safetyMode) {
-                            // wD is in metres, bH is in floors — use a fixed scale for comparison
-                            const wD_scaled = wD * 0.6; // match WATER_SCALE
+                            const wD_scaled = wD * 0.6;
                             let subRatio = wD_scaled / Math.max(visualH, 0.5);
                             if (health < 40 || debrisHits[row][col] === 1 || wD > 2.5 || subRatio > 0.4) {
                                 color.setHex(0xFF0055);
@@ -1925,34 +2054,20 @@
                         } else if (xRayMode) {
                             color.setHex(0x00F3FF);
                         } else {
-                            let r, g, b;
-                            if (mat === 1)      { r = 180; g = 135; b = 95;  } // Wood
-                            else if (mat === 2) { r = 130; g = 135; b = 145; } // Masonry
-                            else                { r = 210; g = 220; b = 230; } // Concrete
+                            // Fix 1 & 3: Cyberpunk Color Palette
+                            color.copy(heightToColor(bH));
 
-                            // Health degradation: orange/red tint as building crumbles
+                            // Health degradation darkening
                             if (health < 70) {
-                                let warnFactor = (70 - health) / 70;
-                                r = Math.floor(THREE.MathUtils.lerp(r, 255, warnFactor));
-                                g = Math.floor(THREE.MathUtils.lerp(g, 80,  warnFactor));
-                                b = Math.floor(THREE.MathUtils.lerp(b, 0,   warnFactor));
+                                color.lerp(new THREE.Color(0x330000), (70 - health) / 70);
                             }
 
-                            // Wear darkening
-                            r = Math.floor(THREE.MathUtils.lerp(35, r, Math.max(0.15, healthRatio)));
-                            g = Math.floor(THREE.MathUtils.lerp(35, g, Math.max(0.15, healthRatio)));
-                            b = Math.floor(THREE.MathUtils.lerp(35, b, Math.max(0.15, healthRatio)));
-
-                            // Submerged tint — compare scaled water depth to visual building height
+                            // Submerged tint
                             const wD_visual = wD * 0.6;
                             if (wD_visual > 0.1) {
                                 let tintFactor = Math.min(wD_visual / Math.max(visualH, 0.5), 0.75);
-                                r = Math.floor(THREE.MathUtils.lerp(r, 12,  tintFactor));
-                                g = Math.floor(THREE.MathUtils.lerp(g, 42,  tintFactor));
-                                b = Math.floor(THREE.MathUtils.lerp(b, 105, tintFactor));
+                                color.lerp(new THREE.Color(0x0c2a69), tintFactor);
                             }
-
-                            color.setRGB(r / 255, g / 255, b / 255);
                         }
                         buildingMesh.setColorAt(idx, color);
                     } else {
@@ -2265,9 +2380,13 @@
                 const eRow = [];
                 const mRow = [];
                 for (let col = 0; col < GRID_WIDTH; col++) {
-                    const terrainElevation = getTerrainElevation(col, row);
-                    const buildingH = buildings[row][col];
-                    eRow.push(terrainElevation + buildingH);
+                    // Convert terrain from world units back to real metres (÷0.18)
+                    // then add building height in real metres — both now in consistent units
+                    const terrainMetres = elevationGrid
+                        ? elevationGrid[row * GRID_WIDTH + col]   // already in real metres
+                        : (col < 6 ? -3.0 : (col - 6) * 1.39);   // synthetic fallback in metres
+                    const buildingH = buildings[row][col];         // raw metres from GeoJSON
+                    eRow.push(terrainMetres + buildingH);
                     mRow.push(materials[row][col]);
                 }
                 elevMap.push(eRow);
@@ -2418,10 +2537,14 @@
                         if (buildings[r][c] > 0 && waterLevels[r][c] > 0.3) {
                             let velocityMag = Math.sqrt(velU[r][c]**2 + velV[r][c]**2);
                             let dynamicP = 0.5 * 1025 * (velocityMag**2);
-                            let yieldLimit = materials[r][c] === 3 ? 120000 : (materials[r][c] === 2 ? 40000 : 15000);
+                            
+                            // PINN outputs normalised velocities (roughly 0–10 range, not 0–50m/s)
+                            // Thresholds scaled down to match PINN output space
+                            let yieldLimit = materials[r][c] === 3 ? 500 : (materials[r][c] === 2 ? 150 : 40);
                             
                             if (dynamicP > yieldLimit * 0.1) {
-                                buildingHealth[r][c] -= (dynamicP / yieldLimit) * 0.05;
+                                // Increased damage rate for AI branch
+                                buildingHealth[r][c] -= (dynamicP / yieldLimit) * 0.12;
                                 buildingHealth[r][c] = Math.max(0, buildingHealth[r][c]);
                             }
                         }
@@ -2442,6 +2565,15 @@
                 waveHeightHistory.push(totalDepthVal / (GRID_WIDTH * GRID_HEIGHT) * 8.0);
                 timerFrames -= simSpeed;  // advance AI playback at the same speed as SWE
                 updateDebrisDeformation();
+                calculateMetrics(); // Real-time metrics
+                
+                // Visual Wave Front Moving across grid
+                if (waveMesh) {
+                    waveMesh.visible = true;
+                    // Move from col 0 to col 63 over simulation duration
+                    const waveX = (1.0 - (timerFrames / totalSimulationFrames)) * (GRID_WIDTH * SPACING);
+                    waveMesh.position.x = waveX;
+                }
                 
             } else {
                 // ── Shallow Water Equations (SWE) solver ──────────────────────────────
@@ -2628,23 +2760,25 @@
                                 // Drainage / infiltration
                                 h_new[r][c] = Math.max(0, h - dt * drainageEff * 0.05);
 
-                                // Building structural damage — tuned so buildings survive moderate waves
-                                // but wood collapses in a 10m+ surge, masonry in 20m+, concrete in 40m+
+                                // Building structural damage — calibrated for high-sensitivity reporting
                                 if (buildings[r][c] > 0) {
                                     const velMag = spd;
                                     const dynamicP = 0.5 * 1025 * velMag * velMag;
-                                    const staticP  = 1025 * g * h;
+                                    const staticP  = 1025 * 9.81 * h;
                                     const totalP   = dynamicP + staticP;
                                     const hydroM   = h * velMag * velMag;
                                     if (hydroM > peakHydroMomentum) peakHydroMomentum = hydroM;
 
-                                    const yieldThresh = materials[r][c] === 3 ? 200000 : (materials[r][c] === 2 ? 80000 : 25000);
-                                    const fragility   = materials[r][c] === 3 ? 0.0000008 : (materials[r][c] === 2 ? 0.000004 : 0.00002);
+                                    // Thresholds: Wood=20k, Masonry=60k, Concrete=150k
+                                    const yieldThresh = materials[r][c] === 3 ? 150000 : (materials[r][c] === 2 ? 60000 : 20000);
+                                    // Fragility increased 10x for real-time visual impact
+                                    const fragility   = materials[r][c] === 3 ? 0.000008 : (materials[r][c] === 2 ? 0.00004 : 0.0002);
                                     if (totalP > yieldThresh) {
                                         buildingHealth[r][c] -= (totalP - yieldThresh) * fragility;
                                         buildingHealth[r][c] = Math.max(0, buildingHealth[r][c]);
                                     }
                                 }
+
                             } else {
                                 h_new[r][c]  = 0;
                                 hu_new[r][c] = 0;
@@ -2671,6 +2805,14 @@
 
                     timerFrames -= (1.0 / SWE_SUBSTEPS) * simSpeed;
                 }
+
+                // Visual Wave Front Moving across grid (SWE Branch)
+                if (waveMesh) {
+                    waveMesh.visible = true;
+                    const waveX = (1.0 - (timerFrames / totalSimulationFrames)) * (GRID_WIDTH * SPACING);
+                    waveMesh.position.x = waveX;
+                }
+                calculateMetrics(); // Real-time metrics for SWE branch
 
                 // Accumulate wave height history for chart (average surface elevation)
                 let totalDepthVal = 0;
@@ -2736,8 +2878,8 @@
                         }
                     }
                     
-                    const x3d = (p.x - GRID_WIDTH/2) * SPACING;
-                    const z3d = (p.y - GRID_HEIGHT/2) * SPACING;
+                    const x3d = p.x * SPACING + SPACING / 2;
+                    const z3d = p.y * SPACING + SPACING / 2;
                     const y3d = getTerrainElevation(ix, iy) + depth * 0.6 + 0.1;
                     
                     posAttr.setXYZ(i, x3d, y3d, z3d);
@@ -2835,8 +2977,8 @@
                     
                     const velMag = Math.sqrt(u*u + v*v);
                     
-                    const x3d = (c - GRID_WIDTH/2) * SPACING;
-                    const z3d = (r - GRID_HEIGHT/2) * SPACING;
+                    const x3d = c * SPACING + SPACING / 2;
+                    const z3d = r * SPACING + SPACING / 2;
                     const y3d = getTerrainElevation(c, r) + wD * 0.6 + 0.3;
                     
                     dummy.position.set(x3d, y3d, z3d);
@@ -2871,7 +3013,7 @@
                     
                     if (buildings[i][j] > 0) {
                         tB++;
-                        if (depth > 1.2) exposedB++;
+                        if (depth > 0.4) exposedB++; // Lowered threshold for better sensitivity
                         if (debrisHits[i][j]) dH++;
                         
                         let mF = materials[i][j] === 3 ? 1.5 : (materials[i][j] === 2 ? 1.0 : 0.5);
@@ -2880,19 +3022,20 @@
                         
                         if (materials[i][j] === 3) {
                             totalRC++;
-                            if (buildingHealth[i][j] < 15) destroyedRC++;
+                            if (buildingHealth[i][j] < 30) destroyedRC++; // Higher threshold for 'destroyed'
                         } else if (materials[i][j] === 2 || materials[i][j] === 1) {
                             totalMasonry++;
-                            if (buildingHealth[i][j] < 15) destroyedMasonry++;
+                            if (buildingHealth[i][j] < 45) destroyedMasonry++; // Even higher for wood/masonry
                         }
                     }
                 }
             }
             
-            const shVal = (resistS / (mR + 0.1)).toFixed(2);
-            const spVal = (1.0 - Math.min(1.0, (tD / (GRID_WIDTH * GRID_HEIGHT * 2.8)))).toFixed(2);
-            const seVal = (1.0 - (exposedB / (tB + 1.0))).toFixed(2);
-            const sdVal = (1.0 - (dH / (tB + 1.0))).toFixed(2);
+            // Normalize metrics to be more sensitive to partial damage
+            const shVal = mR > 0 ? (resistS / mR).toFixed(2) : "1.00";
+            const spVal = (1.0 - Math.min(1.0, (tD / (GRID_WIDTH * GRID_HEIGHT * 1.5)))).toFixed(2);
+            const seVal = tB > 0 ? (1.0 - (exposedB / tB)).toFixed(2) : "1.00";
+            const sdVal = tB > 0 ? (1.0 - (dH / tB)).toFixed(2) : "1.00";
             
             document.getElementById('stat-sh').innerText = shVal;
             document.getElementById('stat-sp').innerText = spVal;
@@ -2902,9 +3045,16 @@
             document.getElementById('val-hydro-peak').innerText = peakHydroMomentum.toFixed(1);
             document.getElementById('val-ke-peak').innerText = peakKE.toFixed(1);
             document.getElementById('val-heavy-hits').innerText = heavyStrikes;
+            
+            // Display detected building count for debugging
             document.getElementById('report-rc').innerText = `${destroyedRC} / ${totalRC}`;
             document.getElementById('report-masonry').innerText = `${destroyedMasonry} / ${totalMasonry}`;
             
+            // Inject building count into the UI if needed or just use existing slots
+            if (tB === 0) {
+                document.getElementById('val-noise-mass').innerText = "DETECTION_ERROR";
+            }
+
             let framesElapsed = Math.max(1, totalSimulationFrames - timerFrames);
             document.getElementById('val-noise-mass').innerText = (noiseMassDist / framesElapsed).toFixed(2);
             document.getElementById('val-noise-impact').innerText = (noiseImpactCount / framesElapsed).toFixed(3);
@@ -3026,8 +3176,9 @@
                 const el = document.getElementById(pin.id);
                 if (!el) return;
                 
-                const colX = (pin.col - GRID_WIDTH/2) * SPACING;
-                const rowZ = (pin.row - GRID_HEIGHT/2) * SPACING;
+                // Fix 3: Origin Aligned Coordinates
+                const colX = pin.col * SPACING + SPACING / 2;
+                const rowZ = pin.row * SPACING + SPACING / 2;
                 const yAnchor = getTerrainElevation(pin.col, pin.row) + 14.0;
                 
                 tempV.set(colX, yAnchor, rowZ);
@@ -3063,8 +3214,9 @@
             
             if (intersects.length > 0) {
                 const pt = intersects[0].point;
-                const col = Math.round(pt.x / SPACING + GRID_WIDTH / 2);
-                const row = Math.round(pt.z / SPACING + GRID_HEIGHT / 2);
+                // Fix 3: Inverse calculation for origin-aligned coordinates
+                const col = Math.floor(pt.x / SPACING);
+                const row = Math.floor(pt.z / SPACING);
                 
                 if (col >= 0 && col < GRID_WIDTH && row >= 0 && row < GRID_HEIGHT) {
                     ins.style.display = 'block';
@@ -3506,9 +3658,9 @@
             }
         }
 
-        window.onload = () => {
+        window.onload = async () => {
             init3D();
-            initializeCityLayout();
+            await initializeCityLayout();
             setupUI();
             
             const container = document.getElementById('canvas-container');

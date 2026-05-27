@@ -1,20 +1,61 @@
 from fastapi import FastAPI, HTTPException, Response
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import torch
 import numpy as np
+import json
 from model import FloodMLP
+from physics_loss import InputNormalizer
 import io
+import os
 
 app = FastAPI(title="Vectorized PINN Flood Backend")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+GRID_SIZE = 64
+
+def load_city_matrix(path="matrix_output.txt"):
+    grid = []
+    try:
+        with open(path, 'r') as f:
+            for line in f:
+                row = list(map(int, line.strip().split()))
+                grid.append(row)
+    except FileNotFoundError:
+        print(f"Warning: {path} not found. Initializing empty grid.")
+        grid = [[0 for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+    return grid
+
+# Load once at startup
+city_matrix = load_city_matrix()
+
+@app.get("/grid")
+def get_grid():
+    return {"grid": city_matrix, "size": GRID_SIZE}
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = FloodMLP().to(device)
 
-import os
-
-# Get the directory of the current script
+# Load Normalizer Stats
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATS_PATH = os.path.join(BASE_DIR, "normalizer_stats.pth")
 WEIGHTS_PATH = os.path.join(BASE_DIR, "flood_mlp_weights.pth")
+
+normalizer = InputNormalizer()
+if os.path.exists(STATS_PATH):
+    stats = torch.load(STATS_PATH, map_location='cpu')
+    normalizer.mean = stats['mean']
+    normalizer.std = stats['std']
+    print(f"Loaded normalizer stats from {STATS_PATH}")
+else:
+    print(f"Warning: Normalizer stats not found at {STATS_PATH}. Inference may be inaccurate.")
+
+model = FloodMLP().to(device)
 
 # Load pre-trained weights
 try:
@@ -85,7 +126,7 @@ def calculate_resilience(h_grid, u_grid, v_grid, B_array, M_array, debris_densit
     }
 
 def prepare_grid(B_array, q_scalar):
-    """Flattens MxN image inputs into MLP data points."""
+    """Flattens MxN image inputs into MLP data points with normalization."""
     rows, cols = B_array.shape
     x = np.linspace(-1, 1, cols)
     y = np.linspace(-1, 1, rows)
@@ -97,8 +138,11 @@ def prepare_grid(B_array, q_scalar):
     q_flat = np.full_like(X_flat, q_scalar)
     
     # Shape: [MxN, 4]
-    points = np.stack([X_flat, Y_flat, B_flat, q_flat], axis=1)
-    return torch.tensor(points, dtype=torch.float32).to(device)
+    raw_points = torch.tensor(np.stack([X_flat, Y_flat, B_flat, q_flat], axis=1), dtype=torch.float32)
+    
+    # Apply Normalization
+    norm_points = normalizer.transform(raw_points).to(device)
+    return norm_points
 
 @app.post("/predict")
 async def predict_tsunami(payload: TsunamiRequest):
@@ -121,11 +165,6 @@ async def predict_tsunami(payload: TsunamiRequest):
     
     # 4. Resilience Analysis
     report = calculate_resilience(h_grid, u_grid, v_grid, B_array, M_array, payload.debris_density)
-    
-    # Pack (h, u, v) into a single (3, rows, cols) float32 array for the frontend
-    # Note: We append the report as metadata in the response headers or a multipart response
-    # For simplicity, we'll pack the report metrics into the first few pixels of a hidden channel 
-    # or just return as a JSON with binary data as base64 (less efficient) or custom header.
     
     response_content = np.stack([h_grid, u_grid, v_grid], axis=0).astype(np.float32).tobytes()
     
@@ -155,10 +194,7 @@ async def analyze_full_scenario(payload: TsunamiRequest):
     max_h = np.zeros_like(B_array)
     max_p = np.zeros_like(B_array)
     
-    # Dynamic surge intensity based on wave duration
-    # This simulates the wave rising, peaking, and receding
     for step in range(num_steps):
-        # Surge profile: Sinusoidal rise and fall
         intensity = payload.wave_height * np.sin(np.pi * (step / num_steps))
         
         points_tensor = prepare_grid(B_array, intensity)
@@ -179,7 +215,6 @@ async def analyze_full_scenario(payload: TsunamiRequest):
         max_p = np.maximum(max_p, p)
 
     # Run resilience calculation on integrated maximums
-    # Thresholds (Wood, Masonry, Concrete)
     thresholds = {0: 1e10, 1: 15000, 2: 45000, 3: 150000}
     failures = np.zeros_like(max_h)
     for m_type, thresh in thresholds.items():
